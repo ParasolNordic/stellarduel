@@ -268,44 +268,18 @@ const rect = (x, y0, y1, z0, z1) => [[x, y0, z0], [x, y0, z1], [x, y1, z1], [x, 
 const rectF = (z, x0, x1, y0, y1) => [[x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z], [x0, y0, z]];
 function linesOf(poly) { const out = []; for (let i = 0; i < poly.length - 1; i++) out.push([poly[i], poly[i + 1]]); return out; }
 
-const CARS = [
-  { nm: 'KUPLA', desc: 'KETTERÄ JA KEVYT', hp: 100, maxSpd: 37, acc: 10, turn: 2.3, grip: 1.1, off: 0.72, mass: 0.85, parts: () => [
-    P(both([[7.5,3,18],[7.5,3,-18],[8,8,15],[8,8,-16],[5,6,20.5],[5,3.5,20],[5.5,9.5,11],[6,10.5,6],[4.8,14.5,1],[4.8,14.5,-6],[5.5,11.5,-12],[5,8,-19.5],[5,4,-20]]),
-      { dec: [...linesOf(rect(6.3, 10.6, 13.6, -7, 4)), ...linesOf(rect(-6.3, 10.6, 13.6, -7, 4)), [[0, 14.6, 1], [0, 14.6, -6]], [[-4, 10.2, 7.5], [4, 10.2, 7.5]]] }),
-    ...symP([[7,8.6,16],[7,8.6,8],[9.4,7,16.5],[9.4,7,7.5],[9.4,3.4,17.5],[9.4,3.4,6.5],[7,3.4,17.5],[7,3.4,6.5]], { tone: 'trim', dec: [[[8.6, 8, 16.6], [8.6, 6.8, 17.4]]] }),
-    ...symP([[7,8.6,-8],[7,8.6,-16],[9.4,7,-7.5],[9.4,7,-16.5],[9.4,3.4,-6.5],[9.4,3.4,-17.5],[7,3.4,-6.5],[7,3.4,-17.5]], { tone: 'trim' }),
-    ...wheels4(8.6, 3.3, 12, -12, 3.3, 2, false),
-  ] },
-  { nm: 'MAASTURI', desc: 'KESTÄVÄ, HYVÄ MAASTOSSA', hp: 140, maxSpd: 34, acc: 8, turn: 1.9, grip: 1.05, off: 0.95, mass: 1.25, parts: () => [
-    P(both([[8,3,18],[8,3,-18],[8,10,-18],[8,10,16.5],[7.6,9.6,18]]), { dec: [...linesOf(rectF(18, -6, 6, 5.5, 8.5)), [[0, 5.5, 18], [0, 8.5, 18]], ...linesOf(rect(8, 4, 9, -15, 3)), ...linesOf(rect(-8, 4, 9, -15, 3))] }),
-    P(both([[7.5,10,3],[7,16.5,-1],[7,16.5,-16.5],[7.5,10,-17.5]]), { tone: 'cabin', dec: [...linesOf(rect(7.3, 11, 15.6, -15.5, -1.5)), [[7.3, 11, -8], [7.3, 15.6, -8]], ...linesOf(rect(-7.3, 11, 15.6, -15.5, -1.5)), [[-7.3, 11, -8], [-7.3, 15.6, -8]], [[-6, 11, 2.5], [-6, 15.8, -0.5]], [[6, 11, 2.5], [6, 15.8, -0.5]]] }),
-    P(box(-8.4, 8.4, 3, 5, 18, 19.6), { tone: 'trim' }), P(box(-8.4, 8.4, 3, 5, -19.6, -18), { tone: 'trim' }),
-    P(box(-5, 5, 16.5, 17.2, -15, -3), { tone: 'trim' }),
-    ...wheels4(8.6, 3.6, 11.5, -11.5, 3.6, 2.4, false),
-  ] },
-  { nm: 'VETERAANI', desc: '1910-LUKU, PANSSAROITU', hp: 155, maxSpd: 30, acc: 7, turn: 1.7, grip: 0.95, off: 0.8, mass: 1.35, parts: () => [
-    P(box(-6, 6, 4.5, 6.5, -20, 20), { tone: 'trim' }),
-    P(both([[4.5,6.5,7],[4.5,6.5,20],[4,11,7],[4,11,19.5]]), { dec: [[[4.2, 8, 9], [4.2, 8, 18]], [[-4.2, 8, 9], [-4.2, 8, 18]], [[0, 11, 7], [0, 11, 19.5]]] }),
-    P(box(-4.8, 4.8, 5, 12.5, 20, 21.6), { tone: 'brass', dec: [...linesOf(rectF(21.6, -3.6, 3.6, 6, 11.5))] }),
-    P(both([[7.5,5.5,6],[7.5,5.5,-20],[7.5,12,4],[7.5,12,-20],[6,14,-13],[6,14,-20]]), { dec: [[[7.5, 10, 4], [7.5, 10, -20]], [[-7.5, 10, 4], [-7.5, 10, -20]]] }),
-    P(both([[7,13.5,-12],[7,13.5,-21],[6.5,19.5,-15],[6.5,19.5,-19.5],[6,17.5,-22]]), { tone: 'cabin', dec: [[[0, 19.6, -15], [0, 19.6, -19.5]]] }),
-    P(box(-6, 6, 12, 18, 5.6, 6.2), { tone: 'glass' }),
-    ...symP([[6,9.8,19],[8.6,9.8,19],[6,9.8,11],[8.6,9.8,11],[6,6.2,7],[8.6,6.2,7]], { tone: 'trim' }),
-    ...symP(box(6, 8.6, 5.4, 6.2, -9, 7), { tone: 'trim' }),
-    ...wheels4(7.2, 4.6, 14, -13, 4.6, 1.3, true),
-  ] },
-  { nm: 'FAETONI', desc: '1920-LUKU, NOPEA', hp: 115, maxSpd: 41, acc: 9, turn: 1.85, grip: 1.0, off: 0.62, mass: 1.1, parts: () => [
-    P(box(-6, 6, 4, 6, -21, 21), { tone: 'trim' }),
-    P(both([[4.8,6,4],[4.8,6,21],[4.5,12.2,4],[4.5,12.2,20.5]]), { dec: [[[4.6, 9, 6], [4.6, 9, 19]], [[4.6, 10, 6], [4.6, 10, 19]], [[-4.6, 9, 6], [-4.6, 9, 19]], [[-4.6, 10, 6], [-4.6, 10, 19]]] }),
-    P(box(-5, 5, 5, 13.2, 21, 22.6), { tone: 'brass', dec: [...linesOf(rectF(22.6, -3.8, 3.8, 6, 12.4))] }),
-    P(both([[7.5,5,4],[7.5,5,-21],[7.5,12.5,4],[7.5,12.5,-21],[7,13.5,-18]]), { dec: [[[7.5, 9, 4], [7.5, 9, -21]], [[-7.5, 9, 4], [-7.5, 9, -21]], [[7.5, 5, -2], [7.5, 12.5, -2]], [[-7.5, 5, -2], [-7.5, 12.5, -2]]] }),
-    P(both([[7.2,12.5,2],[7.2,12.5,-17],[7,19,0],[7,19,-14],[6.5,16,-19]]), { tone: 'cabin', dec: [...linesOf(rect(7.2, 13.5, 18, -12, -1)), ...linesOf(rect(-7.2, 13.5, 18, -12, -1))] }),
-    ...symP([[6,10.5,21.5],[9,10.5,20.5],[6,10.5,11],[9,10.5,11],[6,6,4],[9,5.6,4],[6,5.6,-4],[9,5.6,-4]], { tone: 'trim' }),
-    ...symP([[6,10,-9],[9,10,-9],[6,10,-17],[9,10,-17],[6,5.6,-19],[9,5.6,-19]], { tone: 'trim' }),
-    ...wheels4(7.6, 4.2, 15, -13, 4.2, 1.6, true),
-  ] },
-];
-const CAR_MODELS = CARS.map(c => { const parts = c.parts(); return { parts, r: Math.max(...parts.map(p => vlen(p.cen) + p.r * 0.5)) }; });
+// Automallit tulevat tiedostosta ajoneuvot.js (window.VEKTORIRALLI_AUTOT / require).
+// Jokainen osa on kupera monitahokas desimetreinä; lasipinnat ovat täytettäviä pintoja auton päällä.
+const AUTODATA = (typeof module === 'object' && module.exports) ? require('./ajoneuvot.js') : root.VEKTORIRALLI_AUTOT;
+const CARS = AUTODATA.autot.map(a => Object.assign({ nm: a.nimi, desc: a.kuvaus }, a.ominaisuudet));
+const CAR_MODELS = AUTODATA.autot.map(a => {
+  const parts = [
+    ...a.osat.map(o => P(o.points, { tone: o.tone, dec: o.dec || [] })),
+    ...a.renkaat.map(w => wheel(w.center[0], w.center[1], w.center[2], w.radius, w.width, !!w.front, !!w.spokes)),
+  ];
+  const glass = (a.lasipinnat || []).map(g => ({ pts: g.points.map(q => scl(q, S)), n: norm(g.normal) }));
+  return { parts, glass, r: Math.max(...parts.map(p => vlen(p.cen) + p.r * 0.5)) };
+});
 
 const GUN_RELOAD = 0.5, SPEC_RELOAD = 3;
 const GUNS = [

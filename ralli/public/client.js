@@ -78,7 +78,7 @@ function poly(wp, fill, stroke, o) {
   }
   if (l || r || t || bt) return null;
   const z = zs / n + (o.bias || 0);
-  const it = { z, pts, fill: fill ? fogStr(fill, zs / n, o.shade || 1) : null, stroke: stroke ? fogStr(stroke, zs / n) : null, lw: o.lw || 1,
+  const it = { z, pts, alpha: o.alpha, fill: fill ? fogStr(fill, zs / n, o.shade || 1) : null, stroke: stroke ? fogStr(stroke, zs / n) : null, lw: o.lw || 1,
     lines: o.lines ? projLines(o.lines, zs / n) : null, sub: null };
   (o.list || itemsB).push(it);
   return it;
@@ -112,7 +112,7 @@ function drawItem(ctx, it) {
   ctx.beginPath(); ctx.moveTo(p[0], p[1]);
   for (let i = 2; i < p.length; i += 2) ctx.lineTo(p[i], p[i + 1]);
   ctx.closePath();
-  if (it.fill) { ctx.fillStyle = it.fill; ctx.fill(); }
+  if (it.fill) { ctx.fillStyle = it.fill; if (it.alpha) { ctx.globalAlpha = it.alpha; ctx.fill(); ctx.globalAlpha = 1; } else ctx.fill(); }
   if (it.stroke) { ctx.strokeStyle = it.stroke; ctx.lineWidth = it.lw * V.lwk; ctx.stroke(); }
   if (it.lines) drawLines(ctx, it.lines);
   if (it.sub) for (const s of it.sub) drawItem(ctx, s);
@@ -234,7 +234,7 @@ const treeG = W0.trees.map(t => {
   return { c, faces: [0, 1, 2, 3].map(k => outward([b[k], b[(k + 1) % 4], top], c)), trunk: [[t.x, y, t.z], [t.x, y + t.h * 0.3, t.z]] };
 });
 // automallien tahkoille kuuluvat koristeviivat
-const CARGEO = CAR_MODELS.map(m => ({ r: m.r, parts: m.parts.map(pt => {
+const CARGEO = CAR_MODELS.map(m => ({ r: m.r, glass: m.glass || [], parts: m.parts.map(pt => {
   const fd = pt.faces.map(f => dot(f.n, pt.v[f.idx[0]]));
   const decByFace = pt.faces.map(() => []);
   for (const d of pt.dec) {
@@ -244,7 +244,7 @@ const CARGEO = CAR_MODELS.map(m => ({ r: m.r, parts: m.parts.map(pt => {
   }
   return Object.assign({}, pt, { decByFace });
 }) }));
-const TONES = { body: null, cabin: null, trim: [hex('#2a2c34'), hex('#9aa0b4')], tire: [hex('#0b0b0f'), hex('#6a6f80')], brass: [hex('#3a2c10'), hex('#e0b850')], glass: [null, hex('#9fdcff')] };
+const TONES = { body: null, cabin: null, trim: [hex('#2a2c34'), hex('#9aa0b4')], tire: [hex('#0b0b0f'), hex('#6a6f80')], brass: [hex('#3a2c10'), hex('#e0b850')], glass: [hex('#3c5a78'), hex('#9fdcff')] };
 
 // ===================== AUTON PIIRTO =====================
 function carOri(pos, yaw) {
@@ -301,9 +301,16 @@ function drawCar(car, list) {
         const map = p => add(add(car.pos, lift), RD.toWorld(o, pt.wheel ? (() => { const c = pt.wheel.c; let x = p[0] - c[0], y = p[1] - c[1], z = p[2] - c[2]; const y2 = y * cs - z * sn, z2 = y * sn + z * cs; y = y2; z = z2; if (pt.wheel.front) { const x3 = x * ct + z * st, z3 = -x * st + z * ct; x = x3; z = z3; } return [x + c[0], y + c[1], z + c[2]]; })() : p));
         return [map(d[0]), map(d[1]), edge, 1];
       }) : null;
-      poly(pts, fill, edge, { lines, list, lw: 1.1 });
+      poly(pts, fill, edge, { lines, list, lw: 1.1, alpha: pt.tone === 'glass' ? 0.55 : undefined });
     });
   });
+  // täytetyt lasipinnat (tuulilasi, sivu- ja takaikkunat)
+  const camRel = sub(V.C, car.pos);
+  for (const g of geo.glass) {
+    const nW = RD.toWorld(o, g.n), wp = g.pts.map(v => add(add(car.pos, lift), RD.toWorld(o, v)));
+    if (dot(nW, sub(V.C, wp[0])) <= 0) continue;
+    poly(wp, car.dead ? [20, 22, 28] : [52, 78, 104], car.dead ? [60, 60, 70] : [160, 214, 245], { cull: false, list, bias: -0.25, alpha: 0.85, lw: 1 });
+  }
   return o;
 }
 // ===================== TILA JA VERKKO =====================
@@ -878,11 +885,14 @@ function drawHUD(ctx) {
 // ---------- valintaruudun esikatselu ----------
 const prevCv = $('prev'), prevCtx = prevCv.getContext('2d');
 function drawPreview() {
+  // piirtopuskuri samaan kokoon kuin näkyvä elementti, ettei kuva veny
+  const br = prevCv.getBoundingClientRect(), pw = Math.max(200, Math.round(br.width * DPR)), ph = Math.max(100, Math.round(br.height * DPR));
+  if (br.width > 0 && (prevCv.width !== pw || prevCv.height !== ph)) { prevCv.width = pw; prevCv.height = ph; }
   const w = prevCv.width, h = prevCv.height;
   prevCtx.fillStyle = '#070812'; prevCtx.fillRect(0, 0, w, h);
   const a = animT * 0.6, camPos = [Math.sin(a) * 7.5, 2.6, Math.cos(a) * 7.5];
   setView(prevCtx, w, h, camPos, sub([0, 0.9, 0], camPos), [100, 200]);
-  V.cy = h * 0.55; V.F = h * 1.25; V.lwk = 1.2;
+  V.cy = h * 0.55; V.F = h * 1.25; V.lwk = Math.max(1, h / 220);
   itemsB = [];
   for (let k = -3; k <= 3; k++) { addLine([k * 2, 0, -7], [k * 2, 0, 7], [40, 50, 80], 1); addLine([-7, 0, k * 2], [7, 0, k * 2], [40, 50, 80], 1); }
   const fake = { id: myIdx < 0 ? 0 : myIdx, ci: mySel.car, pos: [0, 0, 0], yaw: 0, steer: Math.sin(animT) * 0.6, spin: animT * 3, hp: 1, maxHp: 1, dents: null };
