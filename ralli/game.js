@@ -3,7 +3,7 @@
 // miinat, öljyläikät, autojen väliset törmäykset, vahingot ja voittajan.
 'use strict';
 const RD = require('./public/shared.js');
-const { add, sub, scl, madd, dot, cross, vlen, norm, clamp, rnd, chance, H, normalAt, CARS, GUNS, SPECIALS, SPAWNS, CAR_R } = RD;
+const { add, sub, scl, madd, dot, cross, vlen, norm, clamp, rnd, chance, H, normalAt, CARS, GUNS, SPECIALS, SPAWNS, CAR_R, GUN_RELOAD, SPEC_RELOAD, BLOCK } = RD;
 const WORLD = RD.buildWorld();
 const r1 = v => v.map(x => Math.round(x * 10) / 10);
 const okNum = x => typeof x === 'number' && isFinite(x) && Math.abs(x) < 1e6;
@@ -25,10 +25,36 @@ function createGame(slots, out) {
     for (const p of P) p.sel.ready = false;
     sendSel();
   }
+  // Aloituspaikat arvotaan joka kierrokselle: eri risteykset muutaman korttelin päässä toisistaan,
+  // eri kaduilla ja niin, että rakennukset peittävät näkyvyyden autojen välillä.
+  function pickSpawns(n) {
+    const pts = [];
+    for (let tries = 0; tries < 4000 && pts.length < n; tries++) {
+      const kx = Math.floor(rnd(-9, 10)), kz = Math.floor(rnd(-9, 10)), x = kx * BLOCK, z = kz * BLOCK;
+      if (pts.some(q => q.kx === kx || q.kz === kz)) continue;
+      const ok = pts.every(q => {
+        const d = Math.hypot(q.x - x, q.z - z);
+        if (d < 240 || d > 520) return false;
+        const from = [x, 1.3, z], dir = norm([q.x - x, 0, q.z - z]);
+        return WORLD.rayBlock(from, dir, d) < d - 10;
+      });
+      if (!ok) { if (tries % 400 === 399) pts.length = 0; continue; }
+      pts.push({ kx, kz, x, z });
+    }
+    while (pts.length < n) { const s = SPAWNS[pts.length]; pts.push({ kx: Math.round(s.x / BLOCK), kz: Math.round(s.z / BLOCK), x: s.x, z: s.z }); }
+    return pts.map(q => {
+      const alongZ = chance(0.5), yaw = alongZ ? (chance(0.5) ? 0 : Math.PI) : (chance(0.5) ? Math.PI / 2 : -Math.PI / 2);
+      const k = alongZ ? q.kx : q.kz, lane = k % 5 === 0 ? 6 : 2.8;
+      const fx = Math.sin(yaw), fz = Math.cos(yaw), rx = fz, rz = -fx;
+      const x = q.x + fx * 22 + rx * lane, z = q.z + fz * 22 + rz * lane;
+      return { x, z, yaw };
+    });
+  }
   function startRound() {
     time = 0; rockets = []; mines = []; oils = []; pairCd.clear();
+    const spawns = pickSpawns(P.length);
     P.forEach((p, k) => {
-      const sp = SPAWNS[p.id], c = CARS[p.sel.car];
+      const sp = spawns[k], c = CARS[p.sel.car];
       Object.assign(p, { pos: [sp.x, H(sp.x, sp.z), sp.z], yaw: sp.yaw, speed: 0, vel: [0, 0], steer: 0, hp: c.hp, maxHp: c.hp, dead: !p.active,
         gun: GUNS[p.sel.gun], spec: SPECIALS[p.sel.spec], ammo: SPECIALS[p.sel.spec].cnt, gunCd: 0, specCd: 0, fire: false,
         fixN: 0, hist: [], spinCd: 0, kills: 0, car: c });
@@ -66,7 +92,7 @@ function createGame(slots, out) {
     let dir = norm(madd(f0, n, -dot(f0, n)));
     const from = add(p.pos, [0, 1.3, 0]);
     // kevyt automaattitähtäys (helpottaa erityisesti puhelimella)
-    let best = null, ba = 0.11;
+    let best = null, ba = p.gun.aim || 0.11;
     for (const q of alive()) {
       if (q === p) continue;
       const to = sub(add(posAt(q, time - 0.1), [0, 1.0, 0]), from), dist = vlen(to);
@@ -83,7 +109,7 @@ function createGame(slots, out) {
   }
   function fireGun(p) {
     const g = p.gun;
-    p.gunCd = g.cd;
+    p.gunCd = GUN_RELOAD;
     const { from, dir } = aimDir(p);
     const ends = [], dmgs = new Map();
     for (let k = 0; k < g.pellets; k++) {
@@ -105,7 +131,7 @@ function createGame(slots, out) {
   function useSpecial(p) {
     if (p.dead || mode !== 'fight' || p.specCd > 0) return;
     if (p.ammo <= 0) { pmsg(p, 'ERIKOISASE TYHJÄ', '#ffb060', 1); return; }
-    p.ammo--; p.specCd = 0.6;
+    p.ammo--; p.specCd = SPEC_RELOAD;
     const f = fwd(p.yaw);
     if (p.spec.nm === 'RAKETIT') {
       const { from, dir } = aimDir(p);
@@ -192,7 +218,6 @@ function createGame(slots, out) {
       if (!p.active || p.dead) continue;
       p.gunCd -= dt; p.specCd -= dt; p.spinCd -= dt;
       p.hist.push([time, p.pos.slice()]); if (p.hist.length > 60) p.hist.shift();
-      if (mode === 'fight' && p.fire && p.gunCd <= 0) fireGun(p);
       if (Math.hypot(p.pos[0], p.pos[2]) > RD.BOUND + 60) damage(p, 8 * dt, null, null, 'bound');
     }
     carCollisions();
@@ -233,9 +258,14 @@ function createGame(slots, out) {
       if (!Array.isArray(d.p) || !d.p.every(okNum) || !okNum(d.y) || !okNum(d.s)) return;
       p.pos = d.p.slice(0, 3); p.yaw = d.y; p.speed = d.s; p.steer = clamp(+d.st || 0, -1, 1);
       p.vel = Array.isArray(d.v) && d.v.every(okNum) ? d.v.slice(0, 2) : [0, 0];
-      p.fire = !!d.fire && mode === 'fight';
     },
-    action(id, a) { const p = byId(id); if (p && a === 'spec') useSpecial(p); },
+    action(id, a) {
+      const p = byId(id);
+      if (!p) return;
+      if (a === 'spec') useSpecial(p);
+      // yksi laukaus per painallus; pieni toleranssi verkon ajoitusvaihtelulle
+      if (a === 'fire' && !p.dead && mode === 'fight' && p.gunCd <= 0.06) fireGun(p);
+    },
     crash(id, d) {
       const p = byId(id);
       if (!p || !p.pos || p.dead || mode !== 'fight' || !d || !okNum(d.imp)) return;

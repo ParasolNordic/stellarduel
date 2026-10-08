@@ -307,10 +307,12 @@ const CARS = [
 ];
 const CAR_MODELS = CARS.map(c => { const parts = c.parts(); return { parts, r: Math.max(...parts.map(p => vlen(p.cen) + p.r * 0.5)) }; });
 
+const GUN_RELOAD = 0.5, SPEC_RELOAD = 3;
 const GUNS = [
-  { nm: 'KONEKIVÄÄRI', desc: 'NOPEA TULI, PIENI VAHINKO', cd: 0.09, dmg: 2.4, pellets: 1, spread: 0.018, range: 230, col: '#ffe066' },
-  { nm: 'HAULIKKO', desc: 'LÄHELTÄ TUHOISA', cd: 0.75, dmg: 2.8, pellets: 9, spread: 0.08, range: 95, col: '#ffb060' },
-  { nm: 'KANUUNA', desc: 'HIDAS, ISKEE KOVAA', cd: 1.15, dmg: 20, pellets: 1, spread: 0.004, range: 300, col: '#9be7ff' },
+  // Jokainen laukaus vaatii oman painalluksen, ja sen jälkeen ase latautuu GUN_RELOAD sekuntia.
+  { nm: 'KIVÄÄRI', desc: 'TARKKA JA KAUAS KANTAVA', cd: 0.5, dmg: 9, pellets: 1, spread: 0.006, range: 300, aim: 0.16, col: '#ffe066' },
+  { nm: 'HAULIKKO', desc: 'LÄHELTÄ TUHOISA', cd: 0.5, dmg: 2.8, pellets: 9, spread: 0.08, range: 95, aim: 0.11, col: '#ffb060' },
+  { nm: 'KANUUNA', desc: 'RASKAS OSUMA, VAIKEA TÄHDÄTÄ', cd: 0.5, dmg: 15, pellets: 1, spread: 0.004, range: 260, aim: 0.07, col: '#9be7ff' },
 ];
 const SPECIALS = [
   { nm: 'RAKETIT', desc: 'RÄJÄHTÄVÄ AMMUS', cnt: 6, dmg: 32, splash: 9 },
@@ -324,6 +326,6 @@ const SPAWNS = [{ x: 806, z: -150, yaw: 0 }, { x: 794, z: -60, yaw: Math.PI }, {
 const CAR_R = 2.3;
 
 const SD = { add, sub, scl, madd, dot, cross, vlen, norm, clamp, rnd, rndi, chance, ss, mulberry32, randDir, toWorld, toLocal, angDiff,
-  CITY, BLOCK, WORLD, CELL, BOUND, RING_R, H, normalAt, ROADTYPES, buildWorld, CARS, CAR_MODELS, GUNS, SPECIALS, PCOL, PNAME, SPAWNS, CAR_R };
+  CITY, BLOCK, WORLD, CELL, BOUND, RING_R, H, normalAt, ROADTYPES, buildWorld, CARS, CAR_MODELS, GUNS, SPECIALS, PCOL, PNAME, SPAWNS, CAR_R, GUN_RELOAD, SPEC_RELOAD };
 if (typeof module === 'object' && module.exports) module.exports = SD; else root.RD = SD;
 })(typeof window !== 'undefined' ? window : this);

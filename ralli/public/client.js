@@ -2,7 +2,7 @@
 (function () {
 'use strict';
 const RD = window.RD;
-const { add, sub, scl, madd, dot, cross, vlen, norm, clamp, rnd, chance, ss, H, normalAt, angDiff, CARS, CAR_MODELS, GUNS, SPECIALS, PCOL, PNAME, ROADTYPES, CITY, BLOCK, WORLD, CELL } = RD;
+const { add, sub, scl, madd, dot, cross, vlen, norm, clamp, rnd, chance, ss, H, normalAt, angDiff, CARS, CAR_MODELS, GUNS, SPECIALS, PCOL, PNAME, ROADTYPES, CITY, BLOCK, WORLD, CELL, GUN_RELOAD, SPEC_RELOAD } = RD;
 const $ = id => document.getElementById(id);
 const hex = h => [parseInt(h.substr(1, 2), 16), parseInt(h.substr(3, 2), 16), parseInt(h.substr(5, 2), 16)];
 const isTouch = (window.matchMedia && matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window);
@@ -388,8 +388,8 @@ function buildSelectUI() {
   $('carRow').innerHTML = CARS.map((c, i) => `<button class="card" data-k="car" data-i="${i}"><div class="nm">${c.nm}</div><div class="ds">${c.desc}</div>
     <div class="st"><span>NOPEUS</span>${bar((c.maxSpd - 25) / 17)}<span>KESTÄVYYS</span>${bar((c.hp - 80) / 80)}<span>OHJATTAVUUS</span>${bar((c.turn - 1.4) / 1)}<span>MAASTO</span>${bar(c.off)}</div></button>`).join('');
   $('gunRow').innerHTML = GUNS.map((g, i) => `<button class="card" data-k="gun" data-i="${i}"><div class="nm">${g.nm}</div><div class="ds">${g.desc}</div>
-    <div class="st"><span>VAHINKO/S</span>${bar(g.dmg * g.pellets / g.cd / 35)}<span>KANTAMA</span>${bar(g.range / 300)}</div></button>`).join('');
-  $('specRow').innerHTML = SPECIALS.map((s, i) => `<button class="card" data-k="spec" data-i="${i}"><div class="nm">${s.nm}</div><div class="ds">${s.desc} · ${s.cnt} KPL</div></button>`).join('');
+    <div class="st"><span>VAHINKO</span>${bar(g.dmg * g.pellets / 25)}<span>KANTAMA</span>${bar(g.range / 300)}</div></button>`).join('');
+  $('specRow').innerHTML = SPECIALS.map((s, i) => `<button class="card" data-k="spec" data-i="${i}"><div class="nm">${s.nm}</div><div class="ds">${s.desc} · ${s.cnt} KPL · LATAUS ${SPEC_RELOAD} S</div></button>`).join('');
   for (const b of document.querySelectorAll('.card')) b.onclick = () => {
     if (mySel.ready) return;
     mySel[b.dataset.k] = +b.dataset.i; beep(); sendSel(); updateSelectUI();
@@ -412,7 +412,7 @@ function onStart(d) {
     cars.set(c.id, car);
   }
   const mc = cars.get(myIdx);
-  me = Object.assign(mc, { vel: [0, 0], yawRate: 0, fixN: 0, spinT: 0, local: true, gunCd: 0 });
+  me = Object.assign(mc, { vel: [0, 0], yawRate: 0, fixN: 0, spinT: 0, local: true, gunCd: 0, specCd: 0, reloadT: -1 });
   cam.pos = null; snaps = []; latest = null; timeOff = null; parts = []; tracers = []; msgs = []; feed = [];
   show('select', false); mode = 'countdown'; modeT = 0; updateTouch(); engineOn();
 }
@@ -809,6 +809,7 @@ function drawHUD(ctx) {
     ctx.font = `${Math.round(11 * s)}px "Share Tech Mono", monospace`; ctx.fillStyle = '#c8d0e0';
     ctx.fillText('KESTÄVYYS ' + Math.round(hp * 100) + '%', pad, by + bh + 13 * s);
     ctx.fillText(GUNS[me.gun].nm + ' · ' + SPECIALS[me.spec].nm + ' ' + '■'.repeat(Math.max(0, me.am)) + '□'.repeat(Math.max(0, SPECIALS[me.spec].cnt - me.am)), pad, by + bh + 27 * s);
+    if (me.specCd > 0) { ctx.fillStyle = '#ff8ae0'; ctx.fillText(SPECIALS[me.spec].nm + ' LATAUTUU ' + me.specCd.toFixed(1) + ' S', pad, by + bh + 41 * s); }
     ctx.font = `${Math.round(30 * s)}px Orbitron, sans-serif`; ctx.fillStyle = '#e8ecf5'; ctx.textAlign = isTouch ? 'center' : 'left';
     const kmh = Math.round(Math.abs(me.speed || 0) * 3.6);
     const sx = isTouch ? SW / 2 : pad, sy = SH - pad - (isTouch ? 0 : 8 * s);
@@ -825,6 +826,12 @@ function drawHUD(ctx) {
       ctx.strokeStyle = me.gunCd > 0 ? '#ffe066' : 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1.5 * s;
       ctx.beginPath(); ctx.moveTo(x - r * 1.8, y); ctx.lineTo(x - r * 0.6, y); ctx.moveTo(x + r * 0.6, y); ctx.lineTo(x + r * 1.8, y); ctx.moveTo(x, y - r * 1.4); ctx.lineTo(x, y - r * 0.5); ctx.stroke();
       ctx.beginPath(); ctx.arc(x, y, r * 0.35, 0, 7); ctx.stroke();
+      if (me.gunCd > 0) {
+        const w = 44 * s, f = clamp(1 - me.gunCd / GUN_RELOAD, 0, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(x - w / 2, y + r * 2, w, 5 * s);
+        ctx.fillStyle = '#ffe066'; ctx.fillRect(x - w / 2, y + r * 2, w * f, 5 * s);
+        ctx.font = `${Math.round(10 * s)}px "Share Tech Mono", monospace`; ctx.textAlign = 'center'; ctx.fillText('LATAUS', x, y + r * 2 + 17 * s); ctx.textAlign = 'left';
+      }
     }
     // automaattitähtäyksen lukitus (sama sääntö kuin palvelimella)
     const fh = [Math.sin(me.yaw), Math.cos(me.yaw)];
@@ -852,7 +859,7 @@ function drawHUD(ctx) {
     const n = 3 - Math.floor(modeT);
     ctx.font = `${Math.round(80 * s)}px Orbitron, sans-serif`; ctx.fillStyle = '#ffd060'; ctx.fillText(n > 0 ? n : 'AJA!', SW / 2, SH * 0.42);
     ctx.font = `${Math.round(13 * s)}px "Share Tech Mono", monospace`; ctx.fillStyle = '#c8d0e0';
-    ctx.fillText(isTouch ? 'VASEN PUIKKO: OHJAUS JA KAASU · OIKEALLA AMMU, ERIKOISASE, KÄSIJARRU' : 'W/↑ KAASU · S/↓ JARRU · A D OHJAUS · VÄLILYÖNTI AMMU · X ERIKOISASE · SHIFT KÄSIJARRU', SW / 2, SH * 0.52);
+    ctx.fillText(isTouch ? 'VASEN PUIKKO: OHJAUS JA KAASU · OIKEALLA AMMU, ERIKOISASE, KÄSIJARRU' : 'W/↑ KAASU · S/↓ JARRU · A D OHJAUS · VÄLILYÖNTI AMMU (YKSI LAUKAUS / PAINALLUS) · X ERIKOISASE · SHIFT KÄSIJARRU', SW / 2, SH * 0.52);
     ctx.fillText('VIIMEINEN EHJÄ AUTO VOITTAA. KARTALTA NÄET MUUT.', SW / 2, SH * 0.56);
   }
   if (me && me.dead && mode === 'fight') { ctx.font = `${Math.round(30 * s)}px Orbitron, sans-serif`; ctx.fillStyle = '#ff6060'; ctx.fillText('AUTOSI ON ROMUNA', SW / 2, SH * 0.2); ctx.font = `${Math.round(12 * s)}px "Share Tech Mono", monospace`; ctx.fillStyle = '#c8d0e0'; ctx.fillText('SEURATAAN MUITA', SW / 2, SH * 0.2 + 22 * s); }
@@ -926,6 +933,9 @@ function sfx(n, k = 1) {
     case 'blast': noise(0.7, 0.5 * k, 2600, 60); break;
     case 'rocket': noise(0.6, 0.25 * k, 900, 3000); break;
     case 'drop': tone('square', 400, 200, 0.12, 0.08 * k); break;
+    case 'reload': noise(0.05, 0.22, 7000, 3000); tone('square', 260, 520, 0.09, 0.05, 0.02); noise(0.05, 0.25, 6000, 2500, 0.2); tone('square', 520, 380, 0.06, 0.05, 0.22); break;
+    case 'ready': tone('triangle', 880, 880, 0.07, 0.08); tone('triangle', 1320, 1320, 0.09, 0.07, 0.08); break;
+    case 'click': tone('square', 180, 160, 0.04, 0.05); break;
     case 'skid': noise(0.8, 0.3 * k, 3000, 1500); break;
     case 'go': tone('square', 880, 880, 0.35, 0.08); tone('triangle', 440, 440, 0.35, 0.12); break;
     case 'count': tone('square', 523, 523, 0.12, 0.07); break;
@@ -948,6 +958,32 @@ function engineUpdate(thr) {
   eng.o.frequency.setTargetAtTime(f, AC.currentTime, 0.05); eng.o2.frequency.setTargetAtTime(f, AC.currentTime, 0.05);
   eng.g.gain.setTargetAtTime(soundOn && !me.dead && mode !== 'select' ? 0.05 + thr * 0.03 : 0, AC.currentTime, 0.08);
 }
+// ---------- yksittäiset laukaukset ----------
+function sendState() {
+  sock.emit('st', { n: me.fixN, p: me.pos.map(v => Math.round(v * 100) / 100), y: Math.round(me.yaw * 1000) / 1000, s: Math.round(me.speed * 10) / 10,
+    st: Math.round(me.steer * 100) / 100, v: me.vel.map(v => Math.round(v * 100) / 100) });
+  sendT = 1 / 25;
+}
+function shoot() {
+  if (!canDrive() || mode !== 'fight') return;
+  if (me.gunCd > 0) { sfx('click'); return; }
+  const g = GUNS[me.gun];
+  me.gunCd = GUN_RELOAD; me.reloadT = 0.14;
+  sendState(); sock.emit('act', 'fire');
+  sfx('gun' + me.gun, 0.8);
+  const o = carOri(me.pos, me.yaw), from = add(me.pos, [0, 1.3, 0]);
+  for (let k = 0; k < Math.min(g.pellets, 5); k++) {
+    const d = norm(add(o.f, [rnd(-g.spread, g.spread), rnd(-g.spread, g.spread) * 0.5, rnd(-g.spread, g.spread)]));
+    const t = Math.min(g.range, W0.rayBlock(from, d, g.range));
+    tracers.push({ a: madd(from, o.f, 2.5), b: madd(from, d, t), col: hex(g.col), t: 0.08 });
+  }
+}
+function special() {
+  if (!canDrive() || mode !== 'fight') return;
+  if (me.specCd > 0 || me.am <= 0) { sfx('click'); return; }
+  me.specCd = SPEC_RELOAD;
+  sendState(); sock.emit('act', 'spec');
+}
 // ===================== SYÖTE =====================
 window.addEventListener('keydown', ev => {
   initAudio();
@@ -965,7 +1001,8 @@ window.addEventListener('keydown', ev => {
   }
   if (c === 'KeyV') camMode = 1 - camMode;
   if (c === 'KeyM') mapZoom = (mapZoom + 1) % 3;
-  if (KEYS.spec.includes(c) && mode === 'fight') sock.emit('act', 'spec');
+  if (KEYS.fire.includes(c)) shoot();
+  if (KEYS.spec.includes(c)) special();
 });
 window.addEventListener('keyup', ev => { keys[ev.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; touch.fire = touch.hand = touch.stick = false; });
@@ -999,9 +1036,12 @@ function setupTouch() {
   const hold = (id, k) => { const el = $(id);
     el.addEventListener('pointerdown', ev => { ev.preventDefault(); initAudio(); el.setPointerCapture(ev.pointerId); touch[k] = true; el.classList.add('on'); });
     const off = () => { touch[k] = false; el.classList.remove('on'); }; el.addEventListener('pointerup', off); el.addEventListener('pointercancel', off); };
-  hold('tFire', 'fire'); hold('tHand', 'hand');
+  hold('tHand', 'hand');
+  const fb = $('tFire');
+  fb.addEventListener('pointerdown', ev => { ev.preventDefault(); initAudio(); fb.classList.add('on'); shoot(); });
+  fb.addEventListener('pointerup', () => fb.classList.remove('on')); fb.addEventListener('pointercancel', () => fb.classList.remove('on'));
   const sp = $('tSpec');
-  sp.addEventListener('pointerdown', ev => { ev.preventDefault(); sp.classList.add('on'); if (mode === 'fight') sock.emit('act', 'spec'); });
+  sp.addEventListener('pointerdown', ev => { ev.preventDefault(); sp.classList.add('on'); special(); });
   sp.addEventListener('pointerup', () => sp.classList.remove('on')); sp.addEventListener('pointercancel', () => sp.classList.remove('on'));
 }
 // ===================== SILMUKKA =====================
@@ -1016,19 +1056,15 @@ function update(dt) {
     interpCars();
     if (canDrive()) {
       ctl = physics(dt);
-      const firing = (any(KEYS.fire) || touch.fire) && mode === 'fight';
+      // latausajastimet: latausääni heti laukauksen jälkeen, erikoisaseesta merkkiääni kun valmis
       me.gunCd -= dt;
-      if (firing && me.gunCd <= 0) {
-        const g = GUNS[me.gun]; me.gunCd = g.cd; sfx('gun' + me.gun, 0.8);
-        const o = carOri(me.pos, me.yaw), from = add(me.pos, [0, 1.3, 0]);
-        for (let k = 0; k < Math.min(g.pellets, 5); k++) { const d = norm(add(o.f, [rnd(-g.spread, g.spread), rnd(-g.spread, g.spread) * 0.5, rnd(-g.spread, g.spread)]));
-          const t = Math.min(g.range, W0.rayBlock(from, d, g.range)); tracers.push({ a: madd(from, o.f, 2.5), b: madd(from, d, t), col: hex(g.col), t: 0.06 }); }
-      }
+      if (me.reloadT >= 0) { me.reloadT -= dt; if (me.reloadT < 0) sfx('reload'); }
+      if (me.specCd > 0) { me.specCd -= dt; if (me.specCd <= 0 && me.am > 0) sfx('ready'); }
       sendT -= dt;
       if (sendT <= 0) {
         sendT = 1 / 25;
         sock.emit('st', { n: me.fixN, p: me.pos.map(v => Math.round(v * 100) / 100), y: Math.round(me.yaw * 1000) / 1000, s: Math.round(me.speed * 10) / 10,
-          st: Math.round(me.steer * 100) / 100, v: me.vel.map(v => Math.round(v * 100) / 100), fire: firing });
+          st: Math.round(me.steer * 100) / 100, v: me.vel.map(v => Math.round(v * 100) / 100) });
       }
     } else if (me.dead) { me.speed = 0; }
     for (const c of cars.values()) if (!c.local) c.spin = (c.spin || 0) + (c.speed || 0) * dt / 0.4;
