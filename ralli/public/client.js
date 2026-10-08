@@ -477,7 +477,7 @@ function interpCars() {
     const c = cars.get(pb.i); if (!c || c.local) continue;
     const pa = am.get(pb.i) || pb;
     c.pos = [pa.p[0] + (pb.p[0] - pa.p[0]) * k, pa.p[1] + (pb.p[1] - pa.p[1]) * k, pa.p[2] + (pb.p[2] - pa.p[2]) * k];
-    c.yaw = pa.y + angDiff(pb.y, pa.y) * k; c.steer = pb.st; c.speed = pb.s;
+    c.yaw = pa.y + angDiff(pb.y, pa.y) * k; c.steer = pb.st; c.speed = pb.s; c.vel = pb.v || [0, 0];
   }
 }
 // ===================== OMA AUTO (fysiikka) =====================
@@ -523,6 +523,7 @@ function physics(dt) {
   }
   me.pos = [nx, H(nx, nz), nz];
   collideStatic();
+  collideCars();
   const r = Math.hypot(me.pos[0], me.pos[2]);
   if (r > RD.BOUND) { const k = RD.BOUND / r; me.pos[0] *= k; me.pos[2] *= k; me.pos[1] = H(me.pos[0], me.pos[2]); me.vel = scl3(me.vel, 0.5); if (!physics.bt || physics.bt < animT) { addMsg('VUORET SULKEVAT TIEN', '#ffd060', 1.2); physics.bt = animT + 2; } }
   me.speed = vF; me.spin += vF * dt / 0.4;
@@ -535,6 +536,31 @@ const scl3 = (v, k) => [v[0] * k, v[1] * k];
 function smoke(c, dmg) {
   const o = carOri(c.pos, c.yaw), p = add(c.pos, RD.toWorld(o, [rnd(-0.4, 0.4), 1.1, 1.5]));
   parts.push({ p, v: [rnd(-0.5, 0.5), rnd(1.5, 3), rnd(-0.5, 0.5)], t: rnd(0.8, 1.6), col: dmg > 0.75 && chance(0.5) ? [255, 120, 40] : [80, 80, 90], s: 0.9 });
+}
+// Törmäys muihin autoihin ratkaistaan omassa laitteessa heti, näkyvää autoa vasten:
+// oma auto siirtyy irti massaosuutensa verran ja kimpoaa (toinen pelaaja tekee saman omalla puolellaan).
+function collideCars() {
+  const minD = RD.CAR_R * 2 * 0.95, mMe = CARS[me.ci].mass;
+  for (const c of cars.values()) {
+    if (c === me || !c.pos) continue;
+    const dx = me.pos[0] - c.pos[0], dz = me.pos[2] - c.pos[2], d = Math.hypot(dx, dz);
+    if (d >= minD || Math.abs(me.pos[1] - c.pos[1]) > 3) continue;
+    const n = d > 1e-4 ? [dx / d, dz / d] : [-Math.sin(me.yaw), -Math.cos(me.yaw)];
+    const mO = c.dead ? 1e9 : CARS[c.ci].mass, share = mO / (mMe + mO);
+    const pen = minD - d;
+    me.pos[0] += n[0] * pen * share; me.pos[2] += n[1] * pen * share; me.pos[1] = H(me.pos[0], me.pos[2]);
+    const ov = c.dead ? [0, 0] : (c.vel || [0, 0]);
+    const vn = (me.vel[0] - ov[0]) * n[0] + (me.vel[1] - ov[1]) * n[1];
+    if (vn < 0) {
+      const j = -vn * 1.35 * share;
+      me.vel = [me.vel[0] + n[0] * j, me.vel[1] + n[1] * j];
+      me.yawRate += (Math.random() - 0.5) * Math.min(2, -vn * 0.08);
+      if (-vn > 3) {
+        sfx('crash', clamp(-vn / 20, 0.3, 1));
+        for (let i = 0; i < 10; i++) parts.push({ p: [me.pos[0] - n[0] * 2.2, me.pos[1] + 0.8, me.pos[2] - n[1] * 2.2], v: [rnd(-4, 4), rnd(1, 5), rnd(-4, 4)], t: 0.45, col: [255, 230, 160], s: 0.2 });
+      }
+    }
+  }
 }
 function collideStatic() {
   const R = 2.1;

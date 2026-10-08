@@ -26,7 +26,7 @@ function createGame(slots, out) {
     sendSel();
   }
   function startRound() {
-    time = 0; rockets = []; mines = []; oils = [];
+    time = 0; rockets = []; mines = []; oils = []; pairCd.clear();
     P.forEach((p, k) => {
       const sp = SPAWNS[p.id], c = CARS[p.sel.car];
       Object.assign(p, { pos: [sp.x, H(sp.x, sp.z), sp.z], yaw: sp.yaw, speed: 0, vel: [0, 0], steer: 0, hp: c.hp, maxHp: c.hp, dead: !p.active,
@@ -164,27 +164,27 @@ function createGame(slots, out) {
     }
     oils = oils.filter(o => o.life > 0);
   }
+  // Autojen väliset törmäykset: kukin selain erottaa ja kimmottaa oman autonsa itse (ei viiveellisiä
+  // sijaintikorjauksia, jotka saivat autot juuttumaan toisiinsa). Palvelin laskee vain vahingon.
+  const pairCd = new Map();
   function carCollisions() {
     const list = P.filter(p => p.active && p.pos);
     for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
       const a = list[i], b = list[j];
       if (a.dead && b.dead) continue;
       const dx = b.pos[0] - a.pos[0], dz = b.pos[2] - a.pos[2], dist = Math.hypot(dx, dz);
-      if (dist > CAR_R * 2 * 0.95 || Math.abs(a.pos[1] - b.pos[1]) > 3) continue;
+      if (dist > CAR_R * 2 * 1.1 || Math.abs(a.pos[1] - b.pos[1]) > 3) continue;
+      const key = a.id * 10 + b.id;
+      if ((pairCd.get(key) || 0) > time) continue;
       const n = [dx / (dist || 1), dz / (dist || 1)];
       const va = a.dead ? [0, 0] : a.vel, vb = b.dead ? [0, 0] : b.vel;
       const vn = (va[0] - vb[0]) * n[0] + (va[1] - vb[1]) * n[1];
-      const ma = a.dead ? 1e9 : a.car.mass, mb = b.dead ? 1e9 : b.car.mass;
-      const pen = CAR_R * 2 * 0.95 - dist;
-      const ja = mb / (ma + mb), jb = ma / (ma + mb);
-      if (vn > 0.3) {
-        const imp = vn * 1.25;
-        if (!a.dead) { a.vel = [va[0] - n[0] * imp * ja, va[1] - n[1] * imp * ja]; damage(a, vn * 0.42 * ja * 2, b.dead ? null : b, add(a.pos, [n[0] * CAR_R, 0.8, n[1] * CAR_R]), 'crash'); }
-        if (!b.dead) { b.vel = [vb[0] + n[0] * imp * jb, vb[1] + n[1] * imp * jb]; damage(b, vn * 0.42 * jb * 2, a.dead ? null : a, add(b.pos, [-n[0] * CAR_R, 0.8, -n[1] * CAR_R]), 'crash'); }
-        ev({ e: 'sfx', n: 'crash', id: a.id }); ev({ e: 'sfx', n: 'crash', id: b.id });
-      }
-      if (!a.dead) { a.pos = [a.pos[0] - n[0] * pen * ja, a.pos[1], a.pos[2] - n[1] * pen * ja]; a.fixN++; out.to(a.id, 'fix', { n: a.fixN, p: a.pos, v: a.vel }); }
-      if (!b.dead) { b.pos = [b.pos[0] + n[0] * pen * jb, b.pos[1], b.pos[2] + n[1] * pen * jb]; b.fixN++; out.to(b.id, 'fix', { n: b.fixN, p: b.pos, v: b.vel }); }
+      if (vn < 2) continue;
+      pairCd.set(key, time + 0.7);
+      const ma = a.dead ? 1e9 : a.car.mass, mb = b.dead ? 1e9 : b.car.mass, ja = mb / (ma + mb), jb = ma / (ma + mb);
+      if (!a.dead) damage(a, vn * 0.42 * ja * 2, b.dead ? null : b, add(a.pos, [n[0] * CAR_R, 0.8, n[1] * CAR_R]), 'crash');
+      if (!b.dead) damage(b, vn * 0.42 * jb * 2, a.dead ? null : a, add(b.pos, [-n[0] * CAR_R, 0.8, -n[1] * CAR_R]), 'crash');
+      ev({ e: 'sfx', n: 'crash', id: a.id }); ev({ e: 'sfx', n: 'crash', id: b.id });
     }
   }
   function update(dt) {
@@ -210,7 +210,7 @@ function createGame(slots, out) {
     evs = [];
     if (mode !== 'select') {
       s.P = P.filter(p => p.pos).map(p => ({ i: p.id, p: r1(p.pos), y: Math.round(p.yaw * 1000) / 1000, s: Math.round(p.speed * 10) / 10,
-        st: Math.round(p.steer * 100) / 100, hp: Math.max(0, Math.round(p.hp)), d: p.dead ? 1 : 0, am: p.ammo, on: p.active ? 1 : 0, k: p.kills }));
+        st: Math.round(p.steer * 100) / 100, v: p.vel ? p.vel.map(x => Math.round(x * 10) / 10) : [0, 0], hp: Math.max(0, Math.round(p.hp)), d: p.dead ? 1 : 0, am: p.ammo, on: p.active ? 1 : 0, k: p.kills }));
       s.K = rockets.map(r => [r.id, ...r1(r.pos), ...r.dir.map(x => Math.round(x * 100) / 100)]);
       s.M = mines.map(m => [m.id, Math.round(m.x * 10) / 10, Math.round(m.z * 10) / 10, m.arm <= 0 ? 1 : 0]);
       s.O = oils.map(o => [o.id, Math.round(o.x), Math.round(o.z), o.r, Math.round(o.life)]);
