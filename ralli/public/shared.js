@@ -37,7 +37,7 @@ const CITY = 800, BLOCK = 80, WORLD = 2700, CELL = 100, BOUND = 2500, RING_R = 1
 // Maasto: kaupunki tasainen, ympärillä kumpuilevat kukkulat ja reunalla jyrkät vuoret
 function H(x, z) {
   const c = Math.max(Math.abs(x), Math.abs(z));
-  const t = ss(CITY + 40, CITY + 460, c);
+  const t = ss(CITY + 100, CITY + 500, c);
   if (t <= 0) return 0;
   const r = Math.hypot(x, z), ang = Math.atan2(z, x);
   const hills = 48 + 30 * Math.sin(x * 0.0041 + 0.7) * Math.cos(z * 0.0037 - 0.4)
@@ -319,7 +319,8 @@ const SPECIALS = [
 ];
 const PCOL = ['#4fd6ff', '#ffa040', '#ff5ad1'];
 const PNAME = ['SININEN', 'ORANSSI', 'VIOLETTI'];
-const SPAWNS = [{ x: 6, z: -700, yaw: 0 }, { x: -700, z: 394, yaw: Math.PI / 2 }, { x: 700, z: 406, yaw: -Math.PI / 2 }];
+// Aloitus kaupungin itälaidan bulevardilla, jonka takana alkavat kukkulat ja vuoret; autot muutaman talon päässä toisistaan
+const SPAWNS = [{ x: 806, z: -150, yaw: 0 }, { x: 794, z: -60, yaw: Math.PI }, { x: 730, z: -163, yaw: Math.PI / 2 }];
 const CAR_R = 2.3;
 
 const SD = { add, sub, scl, madd, dot, cross, vlen, norm, clamp, rnd, rndi, chance, ss, mulberry32, randDir, toWorld, toLocal, angDiff,

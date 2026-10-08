@@ -145,7 +145,7 @@ function outward(pts, center) {
 }
 // kaupungin pohja ja kadut
 const cityTiles = [];
-{ const T = 210, E = CITY + 40; for (let x = -E; x < E; x += T) for (let z = -E; z < E; z += T) cityTiles.push(upward([[x, 0, z], [x, 0, Math.min(E, z + T)], [Math.min(E, x + T), 0, Math.min(E, z + T)], [Math.min(E, x + T), 0, z]])); }
+{ const T = 225, E = CITY + 100; for (let x = -E; x < E; x += T) for (let z = -E; z < E; z += T) cityTiles.push(upward([[x, 0, z], [x, 0, Math.min(E, z + T)], [Math.min(E, x + T), 0, Math.min(E, z + T)], [Math.min(E, x + T), 0, z]])); }
 const cityRoads = [];
 for (const L of W0.lines) {
   const T = ROADTYPES[L.type], w = T.w / 2, col = hex(T.col), edge = hex(T.edge), E = CITY + w;
@@ -178,7 +178,7 @@ const L_SUN = norm([0.5, 0.8, 0.3]);
 for (let i = 0; i < NG; i++) for (let j = 0; j < NG; j++) {
   const x0 = -WORLD + i * CELL, z0 = -WORLD + j * CELL, x1 = x0 + CELL, z1 = z0 + CELL;
   const hs = [HG[i][j], HG[i][j + 1], HG[i + 1][j + 1], HG[i + 1][j]];
-  if (Math.max(...hs) < 0.01 && Math.max(Math.abs(x0 + CELL / 2), Math.abs(z0 + CELL / 2)) < CITY + 40) continue;
+  if (Math.max(...hs) < 0.01) continue;
   const pts = [[x0, hs[0], z0], [x0, hs[1], z1], [x1, hs[2], z1], [x1, hs[3], z0]];
   const hav = (hs[0] + hs[1] + hs[2] + hs[3]) / 4;
   const n = norm(cross(sub(pts[1], pts[0]), sub(pts[3], pts[0])));
@@ -698,60 +698,75 @@ function drawItemHUD(ctx, it) {
   if (!c.dead) { const w = 40 * V.lwk; ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(it.x - w / 2, it.y - 4 * V.lwk, w, 4 * V.lwk); ctx.fillStyle = PCOL[c.id]; ctx.fillRect(it.x - w / 2, it.y - 4 * V.lwk, w * clamp(c.hp / c.maxHp, 0, 1), 4 * V.lwk); }
 }
 // ---------- minikartta ----------
-const MAP_S = 0.32, MAP_N = Math.round(WORLD * 2 * MAP_S);
-let mapImg = null, minimapDirty = true;
-function buildMapImage() {
-  mapImg = document.createElement('canvas'); mapImg.width = MAP_N; mapImg.height = MAP_N;
-  const g = mapImg.getContext('2d');
-  const X = x => (x + WORLD) * MAP_S, Z = z => (WORLD - z) * MAP_S;
-  g.fillStyle = '#070912'; g.fillRect(0, 0, MAP_N, MAP_N);
-  for (const c of cells) {
-    const h = c.c[1], col = h > 300 ? '#3a3f4c' : h > 160 ? '#2a241e' : '#0f2216';
-    g.fillStyle = col; g.fillRect(X(c.c[0] - CELL / 2), Z(c.c[2] + CELL / 2), CELL * MAP_S + 1, CELL * MAP_S + 1);
-  }
-  g.fillStyle = '#10121a'; g.fillRect(X(-CITY - 40), Z(CITY + 40), (CITY + 40) * 2 * MAP_S, (CITY + 40) * 2 * MAP_S);
-  for (const b of W0.buildings) { g.fillStyle = b.kind === 'park' ? '#123a20' : b.kind === 'tower' ? '#1f3550' : '#24242e'; g.fillRect(X(b.x0), Z(b.z1), (b.x1 - b.x0) * MAP_S, (b.z1 - b.z0) * MAP_S); }
-  g.lineCap = 'round';
-  const roadCol = { BULEVARDI: '#c8ccd8', KATU: '#6c7088', MOOTTORITIE: '#ffd34d', MAANTIE: '#e0e0e0', SORATIE: '#b0814f' };
-  for (const L of W0.lines) { g.strokeStyle = roadCol[L.type]; g.lineWidth = Math.max(1.2, ROADTYPES[L.type].w * MAP_S);
-    g.beginPath(); g.moveTo(X(L.c), Z(-CITY)); g.lineTo(X(L.c), Z(CITY)); g.moveTo(X(-CITY), Z(L.c)); g.lineTo(X(CITY), Z(L.c)); g.stroke(); }
-  for (const s of W0.roads) { g.strokeStyle = roadCol[s.type]; g.lineWidth = Math.max(1.4, ROADTYPES[s.type].w * MAP_S); g.beginPath(); g.moveTo(X(s.a[0]), Z(s.a[1])); g.lineTo(X(s.b[0]), Z(s.b[1])); g.stroke(); }
-}
+// Piirretään joka ruudussa suoraan maailman datasta auton omassa koordinaatistossa
+// (oikealle = auton oikea puoli, ylös = auton menosuunta), joten kartta ja 3D-näkymä vastaavat aina toisiaan.
+let minimapDirty = true, lastMap = null;
+const MAP_ROADCOL = { BULEVARDI: '#c8ccd8', KATU: '#7a7f98', MOOTTORITIE: '#ffd34d', MAANTIE: '#e0e0e0', SORATIE: '#c08a50' };
+const MAP_RANGE = [180, 320, 650];
 function drawMinimap(ctx) {
-  if (!mapImg) buildMapImage();
   const t = camTarget(); if (!t) return;
-  const R = Math.round(Math.min(SW, SH) * (mapZoom === 2 ? 0.3 : 0.17)), cx = SW - R - 14 * V.lwk, cy = R + 14 * V.lwk;
-  const zoom = mapZoom === 0 ? 2.2 : mapZoom === 2 ? 0.9 : 1.3;
-  const k = MAP_S * zoom * (R / 140);
-  const rot = -Math.PI / 2 - Math.atan2(-Math.cos(t.yaw), Math.sin(t.yaw));
+  const R = Math.round(Math.min(SW, SH) * (mapZoom === 2 ? 0.3 : 0.18)), cx = SW - R - 14 * V.lwk, cy = R + 14 * V.lwk;
+  const range = MAP_RANGE[mapZoom], k = R / range, lim = range * 1.5;
+  lastMap = { cx, cy, R };
+  const fx = Math.sin(t.yaw), fz = Math.cos(t.yaw), rx = fz, rz = -fx, px = t.pos[0], pz = t.pos[2];
+  const P = (x, z) => { const dx = x - px, dz = z - pz; return [cx + (dx * rx + dz * rz) * k, cy - (dx * fx + dz * fz) * k]; };
+  const near = (x, z, m) => Math.abs(x - px) < lim + m && Math.abs(z - pz) < lim + m;
+  const quad = (x0, z0, x1, z1) => { const a = P(x0, z0), b = P(x1, z0), c = P(x1, z1), d = P(x0, z1); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.closePath(); };
   ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = '#05060c'; ctx.fill(); ctx.clip();
-  ctx.translate(cx, cy); ctx.rotate(rot); ctx.scale(k / MAP_S, k / MAP_S);
-  ctx.globalAlpha = 0.9;
-  ctx.drawImage(mapImg, -(t.pos[0] + WORLD) * MAP_S, -(WORLD - t.pos[2]) * MAP_S);
-  ctx.globalAlpha = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = 'rgba(4,6,12,0.92)'; ctx.fill(); ctx.clip();
+  // maasto karkeina ruutuina korkeuden mukaan
+  for (const c of cells) {
+    if (!near(c.c[0], c.c[2], CELL)) continue;
+    const h = c.c[1];
+    ctx.fillStyle = h > 300 ? '#39404e' : h > 160 ? '#2b241d' : h > 60 ? '#14301d' : '#0f2417';
+    quad(c.c[0] - CELL / 2 - 0.5, c.c[2] - CELL / 2 - 0.5, c.c[0] + CELL / 2 + 0.5, c.c[2] + CELL / 2 + 0.5); ctx.fill();
+  }
+  // kaupungin pohja ja rakennukset
+  if (near(0, 0, CITY + 100)) { ctx.fillStyle = '#10121a'; quad(-CITY - 100, -CITY - 100, CITY + 100, CITY + 100); ctx.fill(); }
+  for (const b of W0.buildings) {
+    if (!near((b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2, 60)) continue;
+    ctx.fillStyle = b.kind === 'park' ? '#164a28' : b.kind === 'tower' ? '#22406a' : b.kind === 'mid' ? '#2c2d3a' : '#3a2a22';
+    quad(b.x0, b.z0, b.x1, b.z1); ctx.fill();
+  }
+  // tiet
+  ctx.lineCap = 'round';
+  const seg = (ax, az, bx, bz, type) => {
+    const a = P(ax, az), b = P(bx, bz);
+    ctx.strokeStyle = MAP_ROADCOL[type]; ctx.lineWidth = Math.max(1.5 * V.lwk, ROADTYPES[type].w * k * 0.9);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+  };
+  for (const L of W0.lines) {
+    const e = CITY + ROADTYPES[L.type].w / 2;
+    if (Math.abs(L.c - px) < lim + 20) seg(L.c, Math.max(-e, pz - lim), L.c, Math.min(e, pz + lim), L.type);
+    if (Math.abs(L.c - pz) < lim + 20) seg(Math.max(-e, px - lim), L.c, Math.min(e, px + lim), L.c, L.type);
+  }
+  for (const r of W0.roads) if (near(r.a[0], r.a[1], 120) || near(r.b[0], r.b[1], 120)) seg(r.a[0], r.a[1], r.b[0], r.b[1], r.type);
+  // miinat ja öljyt
+  if (latest && latest.O) for (const o of latest.O) { const q = P(o[1], o[2]); ctx.fillStyle = 'rgba(120,100,220,0.6)'; ctx.beginPath(); ctx.arc(q[0], q[1], Math.max(2, o[3] * k), 0, 7); ctx.fill(); }
+  if (latest && latest.M) for (const m of latest.M) { const q = P(m[1], m[2]); ctx.fillStyle = '#ff6060'; ctx.fillRect(q[0] - 1.5 * V.lwk, q[1] - 1.5 * V.lwk, 3 * V.lwk, 3 * V.lwk); }
   ctx.restore();
-  // muut autot nuolina; kartan reunalle jos kaukana
-  const toMap = (x, z) => { const dx = (x - t.pos[0]) * k, dy = -(z - t.pos[2]) * k, c = Math.cos(rot), s = Math.sin(rot); return [dx * c - dy * s, dx * s + dy * c]; };
+  // autot nuolina; kartan ulkopuolella olevat reunalle etäisyyden kanssa
   const arrow = (x, y, ang, col, sz, ghost) => {
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
     ctx.beginPath(); ctx.moveTo(0, -sz); ctx.lineTo(sz * 0.7, sz * 0.8); ctx.lineTo(0, sz * 0.35); ctx.lineTo(-sz * 0.7, sz * 0.8); ctx.closePath();
-    ctx.fillStyle = ghost ? 'rgba(0,0,0,0.5)' : col; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.5 * V.lwk; ctx.stroke(); ctx.restore();
+    ctx.fillStyle = ghost ? 'rgba(0,0,0,0.5)' : col; ctx.fill(); ctx.strokeStyle = ghost ? col : '#000'; ctx.lineWidth = 1.2 * V.lwk; ctx.stroke(); ctx.restore();
   };
   for (const c of cars.values()) {
     if (c === t) continue;
-    let [mx, my] = toMap(c.pos[0], c.pos[2]);
+    let [mx, my] = P(c.pos[0], c.pos[2]); mx -= cx; my -= cy;
     const d = Math.hypot(mx, my), edge = d > R - 10 * V.lwk;
     if (edge) { mx *= (R - 10 * V.lwk) / d; my *= (R - 10 * V.lwk) / d; }
-    const ang = rot + Math.atan2(-Math.cos(c.yaw), Math.sin(c.yaw)) + Math.PI / 2;
+    // toisen auton suunta oman auton koordinaatistossa
+    const cfx = Math.sin(c.yaw), cfz = Math.cos(c.yaw);
+    const ang = Math.atan2(cfx * rx + cfz * rz, cfx * fx + cfz * fz);
     arrow(cx + mx, cy + my, ang, PCOL[c.id], 7 * V.lwk, c.dead);
     if (edge) { ctx.fillStyle = PCOL[c.id]; ctx.font = `${Math.round(10 * V.lwk)}px "Share Tech Mono", monospace`; ctx.textAlign = 'center';
-      ctx.fillText(Math.round(vlen(sub(c.pos, t.pos))) + 'M', cx + mx * 0.78, cy + my * 0.78 + 3 * V.lwk); }
+      ctx.fillText(Math.round(vlen(sub(c.pos, t.pos))) + 'M', cx + mx * 0.76, cy + my * 0.76 + 3 * V.lwk); }
   }
   arrow(cx, cy, 0, PCOL[t.id], 8 * V.lwk, false);
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.strokeStyle = PCOL[myIdx] || '#8af'; ctx.lineWidth = 2 * V.lwk; ctx.stroke();
   ctx.fillStyle = '#c8d0e0'; ctx.font = `${Math.round(10 * V.lwk)}px "Share Tech Mono", monospace`; ctx.textAlign = 'center';
-  ctx.fillText('KARTTA' + (isTouch ? '' : ' (M)'), cx, cy + R + 13 * V.lwk);
+  ctx.fillText('KARTTA ' + range * 2 + ' M' + (isTouch ? ' · NAPAUTA' : ' (M)'), cx, cy + R + 13 * V.lwk);
 }
 // ---------- HUD ----------
 function drawHUD(ctx) {
@@ -928,7 +943,10 @@ window.addEventListener('keydown', ev => {
 });
 window.addEventListener('keyup', ev => { keys[ev.code] = false; });
 window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; touch.fire = touch.hand = touch.stick = false; });
-cv.addEventListener('pointerdown', () => { initAudio(); if (isTouch && mode !== 'lobby') goFullscreen(); });
+cv.addEventListener('pointerdown', ev => {
+  initAudio(); if (isTouch && mode !== 'lobby') goFullscreen();
+  if (lastMap && Math.hypot(ev.clientX * DPR - lastMap.cx, ev.clientY * DPR - lastMap.cy) < lastMap.R) mapZoom = (mapZoom + 1) % 3;
+});
 function layoutTouch() {
   const w = window.innerWidth, h = window.innerHeight, S = Math.min(h * 0.42, 190), B = Math.min(h * 0.24, 110), b2 = B * 0.72;
   const place = (id, x, y, ww, hh) => Object.assign($(id).style, { left: x + 'px', top: y + 'px', width: ww + 'px', height: hh + 'px' });
