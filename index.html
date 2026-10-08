@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stellar Duel</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #959595;
+    font-family: "Courier New", monospace; overflow: hidden; }
+  #wrap { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+  #frame { position: relative; background: #000; padding: 1.6vmin; border-radius: 1.2vmin;
+    box-shadow: 0 0 0 0.4vmin #222, 0 0 6vmin rgba(108,94,181,0.25); }
+  canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+  #scan { position: absolute; inset: 1.6vmin; pointer-events: none;
+    background: repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.2) 3px);
+    mix-blend-mode: multiply; }
+  #hint { position: fixed; bottom: 6px; left: 0; right: 0; text-align: center; font-size: 12px; color: #555; }
+</style>
+</head>
+<body>
+<div id="wrap"><div id="frame"><canvas id="c" width="800" height="320"></canvas><div id="scan"></div></div></div>
+<div id="hint">Esc = tauko · 9 = äänet · 0 = koko näyttö</div>
+<script>
+"use strict";
+// ===================== GRAFIIKKA: 800x320 pikselipuskuri, kaksi näkymää =====================
+const W = 800, H = 320, VH = 228, VW = 398, VX = [0, 402];
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const img = ctx.createImageData(W, H);
+const buf = new Uint32Array(img.data.buffer);
+
+const PAL = ['000000','ffffff','68372b','70a4b2','6f3d86','588d43','352879','b8c76f',
+             '6f4f25','433900','9a6759','444444','6c6c6c','9ad284','6c5eb5','959595'];
+const PAL32 = PAL.map(h => {
+  const r = parseInt(h.substr(0,2),16), g = parseInt(h.substr(2,2),16), b = parseInt(h.substr(4,2),16);
+  return (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+});
+const BLACK=0, WHITE=1, RED=2, CYAN=3, PURPLE=4, GREEN=5, BLUE=6, YELLOW=7,
+      ORANGE=8, BROWN=9, LRED=10, DGREY=11, GREY=12, LGREEN=13, LBLUE=14, LGREY=15;
+
+let clipX0 = 0, clipY0 = 0, clipX1 = W-1, clipY1 = H-1;
+function setClip(x0, y0, x1, y1) { clipX0 = x0; clipY0 = y0; clipX1 = x1; clipY1 = y1; }
+function fullClip() { setClip(0, 0, W-1, H-1); }
+function pset(x, y, c) {
+  x = Math.round(x); y = Math.round(y);
+  if (x < clipX0 || x > clipX1 || y < clipY0 || y > clipY1) return;
+  buf[y*W + x] = PAL32[c];
+}
+function fillRect(x, y, w, h, c) {
+  const x0 = Math.max(clipX0, Math.round(x)), y0 = Math.max(clipY0, Math.round(y));
+  const x1 = Math.min(clipX1, Math.round(x + w - 1)), y1 = Math.min(clipY1, Math.round(y + h - 1));
+  const col = PAL32[c];
+  for (let yy = y0; yy <= y1; yy++) { const o = yy*W; for (let xx = x0; xx <= x1; xx++) buf[o+xx] = col; }
+}
+function hline(x0, x1, y, c) {
+  y = Math.round(y); if (y < clipY0 || y > clipY1 || !isFinite(x0) || !isFinite(x1)) return;
+  if (x0 > x1) { const t = x0; x0 = x1; x1 = t; }
+  x0 = Math.max(clipX0, Math.round(x0)); x1 = Math.min(clipX1, Math.round(x1));
+  const col = PAL32[c], o = y*W;
+  for (let x = x0; x <= x1; x++) buf[o+x] = col;
+}
+function rect(x, y, w, h, c) {
+  hline(x, x+w-1, y, c); hline(x, x+w-1, y+h-1, c);
+  line(x, y, x, y+h-1, c); line(x+w-1, y, x+w-1, y+h-1, c);
+}
+function outcode(x, y, xa, ya, xb, yb) {
+  let c = 0; if (x < xa) c |= 1; else if (x > xb) c |= 2; if (y < ya) c |= 4; else if (y > yb) c |= 8; return c;
+}
+function line(x0, y0, x1, y1, c) {
+  if (!isFinite(x0) || !isFinite(y0) || !isFinite(x1) || !isFinite(y1)) return;
+  const xa = clipX0 - 0.49, ya = clipY0 - 0.49, xb = clipX1 + 0.49, yb = clipY1 + 0.49;
+  let c0 = outcode(x0, y0, xa, ya, xb, yb), c1 = outcode(x1, y1, xa, ya, xb, yb);
+  for (let n = 0; n < 8; n++) {
+    if (!(c0 | c1)) break;
+    if (c0 & c1) return;
+    const co = c0 || c1; let x, y;
+    if (co & 8) { x = x0 + (x1-x0)*(yb-y0)/(y1-y0); y = yb; }
+    else if (co & 4) { x = x0 + (x1-x0)*(ya-y0)/(y1-y0); y = ya; }
+    else if (co & 2) { y = y0 + (y1-y0)*(xb-x0)/(x1-x0); x = xb; }
+    else { y = y0 + (y1-y0)*(xa-x0)/(x1-x0); x = xa; }
+    if (co === c0) { x0 = x; y0 = y; c0 = outcode(x0, y0, xa, ya, xb, yb); }
+    else { x1 = x; y1 = y; c1 = outcode(x1, y1, xa, ya, xb, yb); }
+  }
+  if (c0 | c1) return;
+  x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  const col = PAL32[c];
+  let dx = Math.abs(x1-x0), sx = x0 < x1 ? 1 : -1, dy = -Math.abs(y1-y0), sy = y0 < y1 ? 1 : -1, err = dx + dy;
+  for (let i = 0; i < 3000; i++) {
+    if (x0 >= clipX0 && x0 <= clipX1 && y0 >= clipY0 && y0 <= clipY1) buf[y0*W + x0] = col;
+    if (x0 === x1 && y0 === y1) break;
+    const e2 = 2*err;
+    if (e2 >= dy) { err += dy; x0 += sx; }
+    if (e2 <= dx) { err += dx; y0 += sy; }
+  }
+}
+function circle(cx, cy, r, c, fill = -1) {
+  if (!isFinite(cx) || !isFinite(cy) || !isFinite(r) || r < 0.5) { if (r >= 0) pset(cx, cy, c); return; }
+  const yTop = Math.max(clipY0, Math.ceil(cy - r)), yBot = Math.min(clipY1, Math.floor(cy + r));
+  if (yTop > yBot || cx + r < clipX0 || cx - r > clipX1) return;
+  let pl = null, pr = null, py = 0;
+  for (let y = yTop; y <= yBot; y++) {
+    const dy = y - cy, w = Math.sqrt(Math.max(0, r*r - dy*dy));
+    const l = cx - w, rr = cx + w;
+    if (fill >= 0) hline(l, rr, y, fill);
+    if (c >= 0) {
+      if (pl === null) { if (y === Math.ceil(cy - r)) hline(l, rr, y, c); else { pset(l, y, c); pset(rr, y, c); } }
+      else { line(pl, py, l, y, c); line(pr, py, rr, y, c); }
+    }
+    pl = l; pr = rr; py = y;
+  }
+  if (c >= 0 && pl !== null && yBot === Math.floor(cy + r)) hline(pl, pr, yBot, c);
+}
+function ellipse(cx, cy, rx, ry, c, seg = 48) {
+  let px = cx + rx, py = cy;
+  for (let i = 1; i <= seg; i++) {
+    const a = i / seg * Math.PI * 2, x = cx + Math.cos(a)*rx, y = cy + Math.sin(a)*ry;
+    line(px, py, x, y, c); px = x; py = y;
+  }
+}
+// Kupera monikulmio täytettynä (piilopintojen poistoon)
+function fillPoly(pts, c) {
+  let y0 = Infinity, y1 = -Infinity;
+  for (const p of pts) { if (!(Math.abs(p[0]) < 1e5 && Math.abs(p[1]) < 1e5)) return; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }
+  y0 = Math.max(clipY0, Math.ceil(y0 - 0.5)); y1 = Math.min(clipY1, Math.floor(y1 - 0.5));
+  const n = pts.length;
+  for (let y = y0; y <= y1; y++) {
+    const sy = y + 0.5; let xa = Infinity, xb = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const a = pts[i], b = pts[(i+1) % n];
+      if ((a[1] <= sy && b[1] > sy) || (b[1] <= sy && a[1] > sy)) {
+        const x = a[0] + (sy - a[1]) * (b[0]-a[0]) / (b[1]-a[1]);
+        if (x < xa) xa = x; if (x > xb) xb = x;
+      }
+    }
+    if (xa <= xb) hline(xa, xb, y, c);
+  }
+}
+
+// ---- 8x8 bittikarttafontti (Press Start 2P, OFL) ----
+const FONTHEX = '000000000000000038383830300030006c6c6c00000000006cfe6c6c6cfe6c00107cd07c16fc100062a4c810264a8c0070d8d870dacc7e0030303000000000000c18303030180c006030181818306000006c38fe386c00000018187e1818000000000000003030600000007e0000000000000000003030000204081020408000384cc6c6c66438001838181818187e007cc60e3c78e0fe007e0c183c06c67c001c3c6cccfe0c0c00fcc0fc0606c67c003c60c0fcc6c67c00fec60c183030300078c4e4789e867c007cc6c67e060c7800003030003030000000303000303060000c18306030180c000000fe00fe0000006030180c183060007cfec60c380038007c82baaabe807c00386cc6c6fec6c600fcc6c6fcc6c6fc003c66c0c0c0663c00f8ccc6c6c6ccf800fec0c0fcc0c0fe00fec0c0fcc0c0c0003e60c0cec6663e00c6c6c6fec6c6c6007e18181818187e000606060606c67c00c6ccd8f0f8dcce006060606060607e00c6eefed6d6c6c600c6e6f6decec6c6007cc6c6c6c6c67c00fcc6c6c6fcc0c0007cc6c6c6decc7a00fcc6c6cef8dcce007cc6c07c06c67c007e18181818181800c6c6c6c6c6c67c00c6c6c6ee7c381000d6d6d6d6feee4400c6c66c386cc6c6006666663c18181800fe0e1c3870e0fe003c30303030303c0080402010080402007818181818187800386c00000000000000000000000000fe6c00386cc6fec6006c007cc6c6c67c001028386cc6fec600';
+const FONT = new Uint8Array(FONTHEX.length / 2);
+for (let i = 0; i < FONT.length; i++) FONT[i] = parseInt(FONTHEX.substr(i*2, 2), 16);
+function glyphIndex(ch) {
+  const u = ch.toUpperCase();
+  if (u === 'Ä') return 64; if (u === 'Ö') return 65; if (u === 'Å') return 66;
+  const k = u.charCodeAt(0);
+  if (k >= 32 && k < 96) return k - 32;
+  return 31;
+}
+function text(x, y, s, c, sc = 1) {
+  s = String(s);
+  for (let i = 0; i < s.length; i++) {
+    const g = glyphIndex(s[i]) * 8;
+    for (let row = 0; row < 8; row++) {
+      const b = FONT[g + row]; if (!b) continue;
+      for (let col = 0; col < 8; col++) if (b & (128 >> col)) {
+        if (sc === 1) pset(x + i*8 + col, y + row, c);
+        else fillRect(x + (i*8 + col)*sc, y + row*sc, sc, sc, c);
+      }
+    }
+  }
+}
+function textC(y, s, c, sc = 1, x0 = 0, w = W) { s = String(s); text(Math.round(x0 + (w - s.length*8*sc)/2), y, s, c, sc); }
+function textR(xRight, y, s, c) { s = String(s); text(xRight - s.length*8, y, s, c); }
+function present() { ctx.putImageData(img, 0, 0); }
+
+function fitCanvas() {
+  const avW = window.innerWidth * 0.97 - 30, avH = window.innerHeight * 0.93 - 30;
+  let s = Math.min(avW / W, avH / H);
+  if (s >= 2) s = Math.floor(s * 2) / 2;
+  s = Math.max(0.5, s);
+  cv.style.width = (W * s) + 'px'; cv.style.height = (H * s) + 'px';
+}
+window.addEventListener('resize', fitCanvas); fitCanvas();
+// ===================== MATEMATIIKKA =====================
+const add = (a, b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]];
+const sub = (a, b) => [a[0]-b[0], a[1]-b[1], a[2]-b[2]];
+const scl = (a, s) => [a[0]*s, a[1]*s, a[2]*s];
+const madd = (a, b, s) => [a[0]+b[0]*s, a[1]+b[1]*s, a[2]+b[2]*s];
+const dot = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
+const cross = (a, b) => [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const vlen = a => Math.sqrt(dot(a, a));
+const norm = a => { const l = vlen(a) || 1; return [a[0]/l, a[1]/l, a[2]/l]; };
+const clamp = (v, a, b) => v < a ? a : (v > b ? b : v);
+const rnd = (a, b) => a + Math.random() * (b - a);
+const rndi = (a, b) => Math.floor(rnd(a, b + 1));
+const chance = p => Math.random() < p;
+function randDir() { for (;;) { const v = [rnd(-1,1), rnd(-1,1), rnd(-1,1)], l = vlen(v); if (l > 0.1 && l <= 1) return scl(v, 1/l); } }
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function newOri() { return { r: [1,0,0], u: [0,1,0], f: [0,0,1] }; }
+function oriFromForward(f, upHint = [0,1,0]) {
+  f = norm(f);
+  let r = cross(upHint, f);
+  if (vlen(r) < 1e-3) r = cross([1,0,0], f);
+  r = norm(r);
+  return { r, u: cross(f, r), f };
+}
+function rotPitch(o, a) { const c = Math.cos(a), s = Math.sin(a), f = o.f, u = o.u;
+  o.f = [f[0]*c+u[0]*s, f[1]*c+u[1]*s, f[2]*c+u[2]*s]; o.u = [u[0]*c-f[0]*s, u[1]*c-f[1]*s, u[2]*c-f[2]*s]; }
+function rotRoll(o, a) { const c = Math.cos(a), s = Math.sin(a), r = o.r, u = o.u;
+  o.r = [r[0]*c-u[0]*s, r[1]*c-u[1]*s, r[2]*c-u[2]*s]; o.u = [u[0]*c+r[0]*s, u[1]*c+r[1]*s, u[2]*c+r[2]*s]; }
+function rotYaw(o, a) { const c = Math.cos(a), s = Math.sin(a), f = o.f, r = o.r;
+  o.f = [f[0]*c+r[0]*s, f[1]*c+r[1]*s, f[2]*c+r[2]*s]; o.r = [r[0]*c-f[0]*s, r[1]*c-f[1]*s, r[2]*c-f[2]*s]; }
+function orthonorm(o) { o.f = norm(o.f); o.r = norm(cross(o.u, o.f)); o.u = cross(o.f, o.r); }
+function rotAxis(v, k, a) {
+  const c = Math.cos(a), s = Math.sin(a), kv = cross(k, v), kd = dot(k, v) * (1 - c);
+  return [v[0]*c + kv[0]*s + k[0]*kd, v[1]*c + kv[1]*s + k[1]*kd, v[2]*c + kv[2]*s + k[2]*kd];
+}
+const toWorld = (o, v) => [
+  o.r[0]*v[0] + o.u[0]*v[1] + o.f[0]*v[2],
+  o.r[1]*v[0] + o.u[1]*v[1] + o.f[1]*v[2],
+  o.r[2]*v[0] + o.u[2]*v[1] + o.f[2]*v[2]];
+const toLocal = (o, v) => [dot(v, o.r), dot(v, o.u), dot(v, o.f)];
+// ===================== VEKTORIMALLIT: koostetut konveksit osat =====================
+function buildPart(verts, opts = {}) {
+  const n = verts.length;
+  let scale = 0; for (const v of verts) scale = Math.max(scale, vlen(v));
+  const eps = scale * 1e-4 + 1e-6;
+  const planes = [];
+  for (let i = 0; i < n; i++) for (let j = i+1; j < n; j++) for (let k = j+1; k < n; k++) {
+    let nn = cross(sub(verts[j], verts[i]), sub(verts[k], verts[i]));
+    if (vlen(nn) < scale*scale*1e-6) continue;
+    nn = norm(nn); let d = dot(nn, verts[i]);
+    let pos = 0, neg = 0;
+    for (let m = 0; m < n; m++) { const s = dot(nn, verts[m]) - d; if (s > eps) pos++; else if (s < -eps) neg++; }
+    if (pos && neg) continue;
+    if (pos) { nn = scl(nn, -1); d = -d; }
+    if (planes.some(p => dot(p.n, nn) > 0.99999 && Math.abs(p.d - d) < eps*10)) continue;
+    planes.push({ n: nn, d });
+  }
+  const onPlane = (p, v) => Math.abs(dot(p.n, v) - p.d) < eps*10;
+  const faces = planes.map(p => {
+    const idx = []; verts.forEach((v, i) => { if (onPlane(p, v)) idx.push(i); });
+    let cen = [0,0,0]; for (const i of idx) cen = add(cen, verts[i]); cen = scl(cen, 1/idx.length);
+    const e1 = norm(sub(verts[idx[0]], cen)), e2 = cross(p.n, e1);
+    const ang = i => { const d = sub(verts[i], cen); return Math.atan2(dot(d, e2), dot(d, e1)); };
+    idx.sort((a, b) => ang(a) - ang(b));
+    return { n: p.n, d: p.d, p: verts[idx[0]], idx };
+  });
+  const edges = [];
+  for (let i = 0; i < n; i++) for (let j = i+1; j < n; j++) {
+    const fs = [];
+    planes.forEach((p, idx) => { if (onPlane(p, verts[i]) && onPlane(p, verts[j])) fs.push(idx); });
+    if (fs.length >= 2) edges.push({ a: i, b: j, f1: fs[0], f2: fs[1] });
+  }
+  const decals = [];
+  for (const d of (opts.decals || [])) {
+    let best = 0, bd = -2;
+    faces.forEach((f, idx) => { const q = dot(f.n, norm(d.dir)); if (q > bd) { bd = q; best = idx; } });
+    for (let i = 0; i < d.pts.length - (d.open ? 1 : 0); i++)
+      decals.push({ a: d.pts[i], b: d.pts[(i+1) % d.pts.length], f: best });
+  }
+  let cen = [0,0,0]; for (const v of verts) cen = add(cen, v); cen = scl(cen, 1/n);
+  return { v: verts, faces, edges, decals, r: scale, cen, col: opts.col, dcol: opts.dcol, nofill: opts.nofill };
+}
+const compound = parts => ({ parts, r: Math.max(...parts.map(p => p.r)) });
+const mx = v => [-v[0], v[1], v[2]];
+function sym(verts, opts = {}) {
+  const o2 = Object.assign({}, opts, { decals: (opts.decals || []).map(d => ({ dir: mx(d.dir), pts: d.pts.map(mx), open: d.open })) });
+  return [buildPart(verts, opts), buildPart(verts.map(mx), o2)];
+}
+const rectPts = (x0, y0, x1, y1, z) => [[x0,y0,z],[x1,y0,z],[x1,y1,z],[x0,y1,z]];
+const box = (x0, x1, y0, y1, z0, z1) => [[x0,y0,z0],[x1,y0,z0],[x0,y1,z0],[x1,y1,z0],[x0,y0,z1],[x1,y0,z1],[x0,y1,z1],[x1,y1,z1]];
+const ngon = (k, r, y, a0 = 0) => { const o = []; for (let i = 0; i < k; i++) { const a = a0 + i/k*Math.PI*2; o.push([Math.cos(a)*r, y, Math.sin(a)*r]); } return o; };
+
+const MODELS = {};
+// SALAMA: solakka nuolisiipinen hävittäjä (pelaaja 1)
+MODELS.salama = compound([
+  buildPart([[0,0,64],[-10,7,20],[10,7,20],[-10,-5,20],[10,-5,20],[-12,8,-38],[12,8,-38],[-12,-7,-38],[12,-7,-38]],
+    { decals: [{ dir:[0,0,-1], pts: rectPts(-8,-4,8,5,-38) }, { dir:[0,1,0.1], pts: [[0,7.4,18],[0,8,-30]], open: true }], dcol: ORANGE }),
+  buildPart([[0,14,12],[-5,7,30],[5,7,30],[-6,7,2],[6,7,2],[0,11,-6]], { col: LBLUE }),
+  ...sym([[-10,1.5,14],[-10,-1.5,14],[-10,1.5,-34],[-10,-1.5,-34],[-58,1.5,-40],[-58,-1.5,-40],[-51,1.5,-28],[-51,-1.5,-28]],
+    { decals: [{ dir:[0,1,0], pts: [[-22,1.5,-2],[-48,1.5,-28]], open: true }] }),
+  ...sym([[-60,3,14],[-55,3,14],[-60,-3,14],[-55,-3,14],[-61,3,-42],[-54,3,-42],[-61,-3,-42],[-54,-3,-42]], { col: LGREY }),
+  buildPart([[-1.2,8,-12],[1.2,8,-12],[-1.2,8,-38],[1.2,8,-38],[-1.2,26,-42],[1.2,26,-42],[-1.2,26,-33],[1.2,26,-33]]),
+  ...sym([[-15,-5,-4],[-9,-5,-4],[-15,-9,-4],[-9,-9,-4],[-18,-3,-46],[-6,-3,-46],[-18,-12,-46],[-6,-12,-46]],
+    { decals: [{ dir:[0,0,-1], pts: rectPts(-16,-10,-8,-5,-46) }], dcol: ORANGE }),
+]);
+// KORPPI: raskas kaksipuominen eteenpäin nuolettu hävittäjä (pelaaja 2)
+MODELS.korppi = compound([
+  buildPart([[0,-2,50],[-10,6,26],[10,6,26],[-10,-8,26],[10,-8,26],[-9,5,-22],[9,5,-22],[-9,-7,-22],[9,-7,-22]],
+    { decals: [{ dir:[0,0,-1], pts: rectPts(-6,-5,6,3,-22) }], dcol: ORANGE }),
+  buildPart([[0,12,20],[-5,6,38],[5,6,38],[-6,6,10],[6,6,10],[0,9,4]], { col: LGREEN }),
+  ...sym([[-30,0,42],[-33,3,30],[-27,3,30],[-33,-3,30],[-27,-3,30],[-35,5,-52],[-25,5,-52],[-35,-6,-52],[-25,-6,-52]],
+    { decals: [{ dir:[0,0,-1], pts: rectPts(-33,-4,-27,3,-52) }], dcol: ORANGE }),
+  buildPart([[-56,1.5,8],[56,1.5,8],[-56,-1.5,8],[56,-1.5,8],[-56,1.5,-6],[56,1.5,-6],[-56,-1.5,-6],[56,-1.5,-6],
+             [-10,1.5,-26],[10,1.5,-26],[-10,-1.5,-26],[10,-1.5,-26]],
+    { decals: [{ dir:[0,1,0], pts: [[-50,1.5,4],[-38,1.5,4],[-38,1.5,-2],[-50,1.5,-2]] }, { dir:[0,1,0], pts: [[50,1.5,4],[38,1.5,4],[38,1.5,-2],[50,1.5,-2]] }], dcol: LRED }),
+  buildPart(box(-30, 30, 4, 6, -54, -42)),
+  ...sym([[-31,5,-36],[-29,5,-36],[-31,5,-52],[-29,5,-52],[-31,22,-56],[-29,22,-56],[-31,22,-47],[-29,22,-47]]),
+  buildPart(box(-2, 2, -12, -8, 14, 56), { col: LGREY }),
+]);
+const SHIPDEF = [
+  { name:'SALAMA', model: MODELS.salama, col: CYAN, frame: CYAN, exh: [[0,0,-40],[-12,-7,-48],[12,-7,-48]], guns: [[-57,0,15],[57,0,15]], hitR: 46 },
+  { name:'KORPPI', model: MODELS.korppi, col: YELLOW, frame: YELLOW, exh: [[0,-1,-24],[-30,0,-54],[30,0,-54]], guns: [[0,-10,57],[-30,0,43],[30,0,43]], hitR: 48 },
+];
+// Asema: kuboktaedri, telakointiaukko etutahkolla (+z)
+const STS = 300;
+(() => {
+  const v = [];
+  for (const a of [-1,1]) for (const b of [-1,1]) v.push([a*STS,b*STS,0], [a*STS,0,b*STS], [0,a*STS,b*STS]);
+  MODELS.station = compound([buildPart(v, { decals: [
+    { dir:[0,0,1], pts: rectPts(-0.36*STS, -0.14*STS, 0.36*STS, 0.14*STS, STS) },
+    { dir:[0,0,1], pts: rectPts(-0.5*STS, -0.25*STS, 0.5*STS, 0.25*STS, STS) },
+    { dir:[0,0,-1], pts: rectPts(-0.2*STS, -0.2*STS, 0.2*STS, 0.2*STS, -STS) }] })]);
+})();
+// Asteroidit: epäsäännöllisiä ikosaedreja kolmessa koossa
+const ROCK_R = [210, 115, 58], ROCK_HP = [140, 60, 22];
+MODELS.rocks = ROCK_R.map((rad, sz) => [0,1,2,3].map(k => {
+  const t = (1 + Math.sqrt(5)) / 2, R = mulberry32(77 + k*13 + sz*101), base = [];
+  for (const a of [-1,1]) for (const b of [-1,1]) base.push([0,a,b*t],[a,b*t,0],[b*t,0,a]);
+  return compound([buildPart(base.map(p => scl(norm(p), rad * (0.72 + R()*0.5))))]);
+}));
+MODELS.missile = compound([buildPart([[0,0,24],[-3.6,3.6,-15],[3.6,3.6,-15],[-3.6,-3.6,-15],[3.6,-3.6,-15],[-10,0,-18],[10,0,-18],[0,10,-18],[0,-10,-18]])]);
+MODELS.mini = compound([buildPart([[0,0,14],[-2,2,-9],[2,2,-9],[-2,-2,-9],[2,-2,-9],[-6,0,-11],[6,0,-11],[0,6,-11],[0,-6,-11]])]);
+// Pokaali
+MODELS.trophy = compound([
+  buildPart([...ngon(10, 34, 52), ...ngon(10, 11, 12)]),
+  buildPart([...ngon(6, 4, 12), ...ngon(6, 4, -2)], { col: LGREY }),
+  buildPart([...ngon(8, 16, -2), ...ngon(8, 24, -16)], { col: LGREY }),
+  ...sym(box(-44, -32, 24, 44, -3, 3)),
+]);
+// ===================== ASEET =====================
+const LASERS = [
+  { nm:'PULSSI',  tier:1, dmg:5,   cd:0.22, heat:4,   range:4000, col:LRED,   desc:'TASAINEN, KESTÄÄ TULTA', snd:['square',1400,180,0.12,0.08] },
+  { nm:'NEULA',   tier:1, dmg:2.2, cd:0.06, heat:1.4, range:3500, col:LBLUE,  desc:'NOPEA, HEIKKO OSUMA',    snd:['square',2400,900,0.05,0.05] },
+  { nm:'SÄDE',    tier:2, dmg:3.5, cd:0.08, heat:2,   range:4500, col:YELLOW, desc:'TASAINEN SÄDE',          snd:['sawtooth',900,500,0.09,0.05] },
+  { nm:'PLASMA',  tier:3, dmg:16,  cd:0.4,  heat:9,   range:4500, col:LGREEN, wide:1.7, desc:'RASKAS JA LEVEÄ OSUMA', snd:['sawtooth',300,60,0.3,0.12] },
+  { nm:'SOTILAS', tier:4, dmg:5,   cd:0.07, heat:2.2, range:5500, col:CYAN,   desc:'TUHOISA, KUUMENEE',      snd:['square',1800,300,0.08,0.07] },
+  { nm:'TUHOAJA', tier:4, dmg:34,  cd:0.65, heat:14,  range:7000, col:WHITE,  desc:'PITKÄ KANTAMA, HIDAS',   snd:['sawtooth',2200,80,0.45,0.12] },
+];
+const MISSILES = [
+  { nm:'TIKKA',   tier:1, dmg:25,  spd:480, turn:1.6, cnt:6,  resist:0.1,  lockT:1.2, guided:true,  desc:'KEVYT HAKEUTUVA' },
+  { nm:'RAKETTI', tier:1, dmg:30,  spd:950, turn:0,   cnt:10, resist:1,    lockT:0,   guided:false, desc:'OHJAAMATON, PALJON' },
+  { nm:'HAUKKA',  tier:2, dmg:40,  spd:560, turn:2.0, cnt:5,  resist:0.3,  lockT:1.0, guided:true,  desc:'KETTERÄ HAKEUTUVA' },
+  { nm:'PARVI',   tier:3, dmg:22,  spd:540, turn:2.3, cnt:4,  resist:0.35, lockT:1.0, guided:true, swarm:3, desc:'3 PIENOHJUSTA KERRALLA' },
+  { nm:'KOBRA',   tier:3, dmg:62,  spd:620, turn:2.5, cnt:4,  resist:0.55, lockT:0.8, guided:true,  desc:'RASKAS, SIETÄÄ SOIHTUJA' },
+  { nm:'NEMESIS', tier:4, dmg:100, spd:680, turn:3.0, cnt:3,  resist:0.75, lockT:0.7, guided:true,  desc:'TUHOAVA, LÄHES HÄIRIÖTÖN' },
+];
+const BUDGET = 5, TIERCOL = [0, GREY, LGREEN, YELLOW, LRED];
+// ===================== ÄÄNET =====================
+let AC = null, master = null, noiseBuf = null, soundOn = true;
+function initAudio() {
+  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
+  try {
+    AC = new (window.AudioContext || window.webkitAudioContext)();
+    master = AC.createGain(); master.gain.value = 0.3; master.connect(AC.destination);
+    noiseBuf = AC.createBuffer(1, AC.sampleRate * 2, AC.sampleRate);
+    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random()*2 - 1;
+  } catch (e) { AC = null; }
+}
+function outNode(pan) {
+  if (pan && AC.createStereoPanner) { const p = AC.createStereoPanner(); p.pan.value = pan; p.connect(master); return p; }
+  return master;
+}
+function tone(type, f0, f1, dur, vol = 0.2, delay = 0, pan = 0) {
+  if (!AC || !soundOn) return;
+  const t = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain();
+  o.type = type;
+  o.frequency.setValueAtTime(Math.max(20, f0), t);
+  o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  o.connect(g); g.connect(outNode(pan)); o.start(t); o.stop(t + dur + 0.03);
+}
+function noise(dur, vol, f0 = 3000, f1 = 200, delay = 0, pan = 0) {
+  if (!AC || !soundOn) return;
+  const t = AC.currentTime + delay, s = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain();
+  s.buffer = noiseBuf; fl.type = 'lowpass';
+  fl.frequency.setValueAtTime(f0, t); fl.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  s.connect(fl); fl.connect(g); g.connect(outNode(pan)); s.start(t); s.stop(t + dur + 0.03);
+}
+const SFX = {
+  laser:  (L, pan) => tone(L.snd[0], L.snd[1], L.snd[2], L.snd[3], L.snd[4], 0, pan),
+  hit:    pan => noise(0.14, 0.35, 5000, 700, 0, pan),
+  boom:   pan => { noise(1.2, 0.6, 2600, 50, 0, pan); tone('triangle', 140, 30, 0.8, 0.3, 0, pan); },
+  small:  pan => noise(0.35, 0.3, 3000, 200, 0, pan),
+  beep:   pan => tone('square', 990, 990, 0.045, 0.06, 0, pan),
+  err:    pan => tone('square', 180, 160, 0.18, 0.08, 0, pan),
+  lock:   pan => tone('square', 700, 700, 0.04, 0.04, 0, pan),
+  locked: pan => tone('square', 1760, 1760, 0.09, 0.06, 0, pan),
+  missile:pan => { noise(0.6, 0.25, 1200, 300, 0, pan); tone('sawtooth', 260, 900, 0.5, 0.05, 0, pan); },
+  alarm:  pan => { tone('square', 1046, 1046, 0.09, 0.07, 0, pan); tone('square', 784, 784, 0.09, 0.07, 0.11, pan); },
+  flare:  pan => { noise(0.45, 0.22, 7000, 900, 0, pan); tone('triangle', 1300, 300, 0.3, 0.06, 0, pan); },
+  launch: () => { noise(1.5, 0.22, 500, 3500); tone('triangle', 220, 55, 1.5, 0.22); },
+  count:  () => tone('square', 523, 523, 0.15, 0.08),
+  go:     () => { tone('square', 1046, 1046, 0.4, 0.08); tone('triangle', 523, 523, 0.4, 0.12); },
+  jingle: () => {
+    const N = [262, 330, 392, 523, 392, 494, 587, 784, 659, 523, 392, 523];
+    N.forEach((f, i) => { tone('square', f, f, 0.14, 0.06, i*0.12); tone('triangle', f/2, f/2, 0.14, 0.1, i*0.12); });
+  },
+  fanfare: () => {
+    const N = [523, 523, 523, 659, 784, 659, 784, 1046];
+    N.forEach((f, i) => { tone('square', f, f, i === 7 ? 0.8 : 0.16, 0.07, i*0.17); tone('triangle', f/2, f/2, 0.16, 0.12, i*0.17); });
+  },
+};
+const panOf = p => p.id ? 0.65 : -0.65;
+// ===================== TILA =====================
+const MAXSPD = 320, FOCAL = 300, NEAR = 3, ARENA_R = 30000, RADAR_R = 9000;
+let mode = 'title', modeT = 0, paused = false, titleT = 0;
+let players = [], world = null, winner = null, drawReason = '', prize = null, matchNo = 0;
+const keys = {};
+const wins = [0, 0], totals = [0, 0];
+try { const s = JSON.parse(localStorage.getItem('stellarduel_score')); if (s) { wins[0] = s.w[0]; wins[1] = s.w[1]; totals[0] = s.t[0]; totals[1] = s.t[1]; } } catch (e) {}
+function saveScore() { try { localStorage.setItem('stellarduel_score', JSON.stringify({ w: wins, t: totals })); } catch (e) {} }
+const sel = [{ cur: 0, laser: 0, mis: 2, ready: false, invert: false, msg: '', msgT: 0 },
+             { cur: 0, laser: 2, mis: 0, ready: false, invert: false, msg: '', msgT: 0 }];
+
+const CTRL = [
+  { pu:['KeyS'], pd:['KeyW'], rl:['KeyA'], rr:['KeyD'], yl:['KeyQ'], yr:['KeyE'], tu:['KeyR'], td:['KeyF'],
+    fire:['Space'], mis:['KeyX'], flare:['KeyC'] },
+  { pu:['ArrowDown'], pd:['ArrowUp'], rl:['ArrowLeft'], rr:['ArrowRight'], yl:['Comma'], yr:['Period'], tu:['KeyP'], td:['Semicolon'],
+    fire:['Enter','Numpad0'], mis:['ShiftRight','NumpadEnter'], flare:['Quote','NumpadDecimal'] },
+];
+const anyKey = list => list.some(k => keys[k]);
+
+// Kiinteä taivas: tähdet, kaukainen spiraaligalaksi
+const SKY = (() => {
+  const R = mulberry32(99), stars = [], gal = [];
+  for (let i = 0; i < 260; i++) stars.push({ d: norm([R()*2-1, R()*2-1, R()*2-1]), c: R() < 0.15 ? LGREY : (R() < 0.5 ? GREY : DGREY) });
+  const gc = norm([-0.5, 0.45, 0.75]), ga = norm(cross(gc, [0.3, 1, 0])), gb = cross(gc, ga);
+  for (let i = 0; i < 260; i++) {
+    const arm = i % 2, t = R(), a = t * 5.2 + arm * Math.PI + (R() - 0.5) * 0.5, rr = t * 0.11 + 0.004;
+    const x = Math.cos(a) * rr, y = Math.sin(a) * rr * 0.45;
+    gal.push({ d: norm(add(gc, add(scl(ga, x), scl(gb, y)))), c: t < 0.15 ? WHITE : (t < 0.45 ? LBLUE : (R() < 0.5 ? PURPLE : DGREY)) });
+  }
+  return { stars, gal };
+})();
+
+function makeWorld() {
+  const R = mulberry32(4242 + matchNo * 31);
+  const tiltOri = (u) => { u = norm(u); const r = norm(cross(u, [0,0,1])); return { r, u, f: cross(r, u) }; };
+  const planets = [
+    { pos: [0, -4000, 32000], R: 9000, col: LRED, col2: ORANGE, style: 'giant', ori: tiltOri([0.25, 1, -0.5]), rings: true, ringCol: LGREY },
+    { pos: [-28000, 7000, -14000], R: 4200, col: CYAN, style: 'globe', ori: tiltOri([0.3, 1, 0.2]) },
+    { pos: [13000, 4000, 22000], R: 1600, col: GREY, style: 'moon', ori: tiltOri([0, 1, 0]),
+      craters: [[0.3, 0.5, -0.8, 0.22], [-0.6, 0.1, -0.75, 0.15], [0.1, -0.5, -0.85, 0.18], [0.7, -0.2, -0.6, 0.12]] },
+  ];
+  const sunPos = scl(norm([0.6, 0.35, -0.7]), 300000);
+  const stPos = [3000, 2500, 17500];
+  const st = { model: MODELS.station, pos: stPos, ...oriFromForward(sub(stPos, planets[0].pos)) };
+  world = { planets, sun: { pos: sunPos, R: 24000 }, station: st, rocks: [], missiles: [], flares: [], debris: [], dots: [],
+    comet: { pos: [-50000, 25000, 40000] } };
+  world.comet.tail = norm(sub(world.comet.pos, sunPos));
+  const spawns = [[-5500, 0, -1200], [5500, 0, 1200]];
+  let tries = 0;
+  while (world.rocks.length < 34 && tries++ < 2000) {
+    const p = [(R()*2-1)*9500, (R()*2-1)*4500, (R()*2-1)*9500];
+    const sz = world.rocks.length < 10 ? 0 : (world.rocks.length < 24 ? 1 : 2);
+    if (spawns.some(s => vlen(sub(s, p)) < 2000) || vlen(sub(p, stPos)) < 2500) continue;
+    if (world.rocks.some(r => vlen(sub(r.pos, p)) < ROCK_R[r.size] + ROCK_R[sz] + 150)) continue;
+    world.rocks.push(makeRock(p, sz, R));
+  }
+  return spawns;
+}
+function makeRock(pos, size, R = Math.random) {
+  const o = oriFromForward([R()*2-1, R()*2-1, R()*2-1 || 0.1]);
+  return { model: MODELS.rocks[size][Math.floor(R()*4)], pos, ...o, size, hp: ROCK_HP[size], hitR: ROCK_R[size] * 0.85,
+    vel: scl(norm([R()-0.5, R()-0.5, R()-0.5]), R() * 30), spin: [(R()-0.5)*0.6, (R()-0.5)*0.6], dead: false };
+}
+function newPlayer(i, pos) {
+  const o = oriFromForward(i === 0 ? [1, 0, 0.32] : [-1, 0, -0.32]);
+  const s = sel[i], mis = MISSILES[s.mis];
+  const p = { id: i, def: SHIPDEF[i], model: SHIPDEF[i].model, pos: pos.slice(), r: o.r, u: o.u, f: o.f,
+    speed: 140, roll: 0, pitch: 0, yaw: 0, shield: 100, hull: 100, heat: 0, overheat: false, laserCd: 0,
+    beamT: 0, beamEnd: null, regenT: 0, laser: LASERS[s.laser], mis, missiles: mis.cnt, misCd: 0, flares: 8, flareCd: 0,
+    lockP: 0, locked: false, lockBeep: 0, dead: false, deathT: 0, hitFlash: 0, msg: '', msgT: 0, msgCol: WHITE,
+    warnT: 0, invert: s.invert, dust: [], boundT: 0, hitR: SHIPDEF[i].hitR, kills: 0 };
+  for (let k = 0; k < 80; k++) p.dust.push(madd(p.pos, randDir(), rnd(60, 1000)));
+  return p;
+}
+function startMatch() {
+  matchNo++;
+  const sp = makeWorld();
+  players = [newPlayer(0, sp[0]), newPlayer(1, sp[1])];
+  winner = null; prize = null; mode = 'countdown'; modeT = 0; paused = false;
+  SFX.launch();
+}
+const other = p => players[1 - p.id];
+function pmsg(p, t, col = WHITE, dur = 2) { p.msg = t; p.msgT = dur; p.msgCol = col; }
+// ===================== PELILOGIIKKA =====================
+function controlPlayer(p, dt) {
+  const k = CTRL[p.id];
+  const kr = (anyKey(k.rr) ? 1 : 0) - (anyKey(k.rl) ? 1 : 0);
+  let kp = (anyKey(k.pu) ? 1 : 0) - (anyKey(k.pd) ? 1 : 0);
+  if (p.invert) kp = -kp;
+  const ky = (anyKey(k.yr) ? 1 : 0) - (anyKey(k.yl) ? 1 : 0);
+  const ease = (v, inp) => inp ? clamp(v + inp*dt*4, -1, 1) : v - Math.sign(v) * Math.min(Math.abs(v), dt*5);
+  p.roll = ease(p.roll, kr); p.pitch = ease(p.pitch, kp); p.yaw = ease(p.yaw, ky);
+  rotRoll(p, p.roll * 2.2 * dt); rotPitch(p, p.pitch * 1.35 * dt); rotYaw(p, p.yaw * 0.7 * dt); orthonorm(p);
+  if (anyKey(k.tu)) p.speed = Math.min(MAXSPD, p.speed + 210*dt);
+  if (anyKey(k.td)) p.speed = Math.max(0, p.speed - 210*dt);
+  if (anyKey(k.fire)) fireLaser(p);
+}
+function movePlayer(p, dt) {
+  p.pos = madd(p.pos, p.f, p.speed * dt);
+  p.laserCd -= dt; p.beamT -= dt; p.misCd -= dt; p.flareCd -= dt; p.hitFlash -= dt; p.msgT -= dt; p.warnT -= dt; p.regenT -= dt;
+  p.heat = Math.max(0, p.heat - 16*dt);
+  if (p.overheat && p.heat < 35) { p.overheat = false; pmsg(p, 'LASER JÄÄHTYNYT', LGREEN, 1); }
+  if (p.regenT <= 0 && p.shield < 100) p.shield = Math.min(100, p.shield + 7*dt);
+  for (const d of p.dust) for (let i = 0; i < 3; i++) {
+    const r = d[i] - p.pos[i];
+    if (r > 1000) d[i] -= 2000; else if (r < -1000) d[i] += 2000;
+  }
+}
+function damage(p, d, src) {
+  if (p.dead) return;
+  p.hitFlash = 0.15; p.regenT = 2.5;
+  if (p.shield >= d) p.shield -= d; else { p.hull -= d - p.shield; p.shield = 0; }
+  SFX.hit(panOf(p));
+  if (p.hull <= 0) killPlayer(p, src ? 'PELAAJA ' + (src.id + 1) + ' TUHOSI SINUT' : 'ALUKSESI TUHOUTUI');
+}
+function killPlayer(p, reason) {
+  if (p.dead) return;
+  p.dead = true; p.hull = 0; p.deathT = 0; p.speed *= 0.3; p.lockP = 0; p.locked = false; p.beamT = 0;
+  explodeModel(p, p.def.col, true);
+  pmsg(p, reason, LRED, 6);
+}
+function explodeModel(e, col, big) {
+  let n = 0;
+  for (const pt of e.model.parts) for (const ed of pt.edges) {
+    if (n++ > 44) break;
+    const a = toWorld(e, pt.v[ed.a]), b = toWorld(e, pt.v[ed.b]), mid = scl(add(a, b), 0.5);
+    world.debris.push({ p: add(e.pos, mid), h: scl(sub(b, a), 0.5), v: madd(scl(e.f, (e.speed || 0) * 0.4), norm(mid), rnd(20, 110)),
+      ax: randDir(), w: rnd(-4, 4), life: rnd(1.6, 3.2), col: pt.col !== undefined ? pt.col : col });
+  }
+  const nd = big ? 70 : 18;
+  for (let i = 0; i < nd; i++)
+    world.dots.push({ p: e.pos.slice(), v: madd(scl(e.f, (e.speed || 0) * 0.3), randDir(), rnd(30, 200) * (big ? 1 : 0.5)), life: rnd(0.6, 2) });
+  (big ? SFX.boom : SFX.small)();
+}
+function laserTargets(p) {
+  const t = [];
+  for (const q of players) if (q !== p && !q.dead) t.push({ e: q, r: q.hitR, kind: 'ship' });
+  for (const r of world.rocks) if (!r.dead) t.push({ e: r, r: r.hitR, kind: 'rock' });
+  for (const m of world.missiles) if (!m.dead && m.owner !== p) t.push({ e: m, r: 16, kind: 'missile' });
+  t.push({ e: world.station, r: STS * 1.05, kind: 'station' });
+  return t;
+}
+function fireLaser(p) {
+  const L = p.laser;
+  if (p.laserCd > 0 || p.overheat) return;
+  p.laserCd = L.cd; p.heat += L.heat;
+  if (p.heat >= 100) { p.heat = 100; p.overheat = true; pmsg(p, 'LASER YLIKUUMENI', ORANGE, 1.5); SFX.err(panOf(p)); }
+  p.beamT = Math.min(0.09, L.cd * 0.85);
+  SFX.laser(L, panOf(p));
+  let best = null, bt = L.range;
+  for (const c of laserTargets(p)) {
+    const rel = sub(c.e.pos, p.pos), t = dot(rel, p.f);
+    if (t <= 0 || t > bt + c.r) continue;
+    const perp = vlen(madd(rel, p.f, -t));
+    const assist = c.kind === 'ship' ? (1 + t * 0.00035) * (L.wide || 1) : 1;
+    if (perp < c.r * assist) { best = c; bt = Math.max(1, t - c.r * 0.5); }
+  }
+  p.beamEnd = madd(p.pos, p.f, best ? bt : L.range);
+  p.beamHit = best ? best.kind : null;
+  if (!best) return;
+  const dmg = L.dmg * rnd(0.85, 1.15);
+  if (best.kind === 'ship') damage(best.e, dmg, p);
+  else if (best.kind === 'rock') hitRock(best.e, dmg);
+  else if (best.kind === 'missile') { best.e.hp -= dmg; if (best.e.hp <= 0) killMissile(best.e); }
+  world.dots.push({ p: p.beamEnd.slice(), v: scl(randDir(), 60), life: 0.3 });
+}
+function hitRock(r, dmg) {
+  if (r.dead) return;
+  r.hp -= dmg;
+  if (r.hp > 0) return;
+  r.dead = true; explodeModel(r, GREY, r.size === 0);
+  if (r.size < 2) for (let i = 0; i < 2; i++) {
+    const n = makeRock(madd(r.pos, randDir(), ROCK_R[r.size] * 0.5), r.size + 1);
+    n.vel = madd(r.vel, randDir(), rnd(30, 80)); world.rocks.push(n);
+  }
+}
+function fireMissile(p) {
+  if (p.dead || p.misCd > 0) return;
+  if (p.missiles <= 0) { pmsg(p, 'OHJUKSET LOPPU', ORANGE, 1); SFX.err(panOf(p)); return; }
+  const M = p.mis, o = other(p), tgt = M.guided && p.locked && !o.dead ? o : null;
+  p.missiles--; p.misCd = M.guided ? 0.7 : 0.25;
+  const n = M.swarm || 1;
+  for (let i = 0; i < n; i++) {
+    let f = p.f;
+    if (n > 1) f = norm(madd(madd(p.f, p.r, (i - 1) * 0.12), p.u, i === 1 ? 0.08 : -0.03));
+    const ori = oriFromForward(f, p.u);
+    world.missiles.push({ model: n > 1 ? MODELS.mini : MODELS.missile, def: M, owner: p, target: tgt,
+      pos: madd(madd(madd(p.pos, p.f, 75), p.u, -16), p.r, (i - (n-1)/2) * 22), ...ori, speed: p.speed + 90, life: 13, age: 0, hp: 6, trailT: 0, dead: false });
+  }
+  SFX.missile(panOf(p));
+  if (tgt) { pmsg(o, 'OHJUS LÄHESTYY!', LRED, 2.5); SFX.alarm(panOf(o)); }
+  else if (M.guided) pmsg(p, 'EI LUKITUSTA - SUORALENTO', ORANGE, 1.2);
+}
+function dropFlares(p) {
+  if (p.dead || p.flareCd > 0) return;
+  if (p.flares <= 0) { pmsg(p, 'SOIHDUT LOPPU', ORANGE, 1); SFX.err(panOf(p)); return; }
+  p.flares--; p.flareCd = 0.5;
+  const fl = [];
+  for (const s of [-1, 1]) {
+    const f = { pos: madd(p.pos, p.u, -10), vel: add(scl(p.f, p.speed * 0.35), add(scl(p.r, s * rnd(50, 90)), scl(p.u, -rnd(30, 60)))), life: 3.6, dead: false, sparkT: 0 };
+    world.flares.push(f); fl.push(f);
+  }
+  let fooled = 0;
+  for (const m of world.missiles) if (!m.dead && m.target === p && vlen(sub(m.pos, p.pos)) < 7000 && Math.random() > m.def.resist) { m.target = fl[fooled % 2]; fooled++; }
+  const o = other(p);
+  if (o.lockP > 0) { o.lockP = 0; o.locked = false; pmsg(o, 'LUKITUS KATKESI', ORANGE, 1); }
+  SFX.flare(panOf(p));
+  pmsg(p, fooled ? 'SOIHTU HARHAUTTI ' + fooled + ' OHJUSTA' : 'SOIHDUT', fooled ? LGREEN : YELLOW, 1.2);
+}
+function updateLock(p, dt) {
+  const o = other(p), M = p.mis;
+  const was = p.locked;
+  if (!M.guided || o.dead || p.dead) { p.lockP = 0; p.locked = false; return; }
+  const l = toLocal(p, sub(o.pos, p.pos));
+  const ok = l[2] > 200 && l[2] < 8000 && Math.hypot(l[0], l[1]) / l[2] < 0.2;
+  if (ok) p.lockP = Math.min(1, p.lockP + dt / M.lockT); else p.lockP = Math.max(0, p.lockP - dt * 1.5);
+  p.locked = p.lockP >= 1;
+  p.lockBeep -= dt;
+  if (p.locked && !was) { SFX.locked(panOf(p)); pmsg(o, 'SINUT ON LUKITTU!', LRED, 1.5); }
+  else if (!p.locked && p.lockP > 0 && p.lockBeep <= 0) { SFX.lock(panOf(p)); p.lockBeep = 0.25 - p.lockP * 0.15; }
+}
+function killMissile(m) {
+  if (m.dead) return;
+  m.dead = true; explodeModel(m, WHITE, false);
+}
+function updateMissiles(dt) {
+  for (const m of world.missiles) {
+    if (m.dead) continue;
+    m.life -= dt; m.age += dt;
+    if (m.life <= 0) { killMissile(m); continue; }
+    let t = m.target;
+    if (t && (t.dead || (t.life !== undefined && t.life <= 0))) t = m.target = null;
+    if (t && m.def.turn > 0) {
+      const d = norm(sub(t.pos, m.pos)), cd = clamp(dot(m.f, d), -1, 1), ang = Math.acos(cd);
+      if (ang > 1e-4) {
+        const ax = norm(cross(m.f, d)), a = Math.min(ang, m.def.turn * dt);
+        const nf = rotAxis(m.f, ax, a), o = oriFromForward(nf, m.u); m.r = o.r; m.u = o.u; m.f = o.f;
+      }
+    }
+    m.speed = Math.min(m.def.spd, m.speed + 320*dt);
+    m.pos = madd(m.pos, m.f, m.speed * dt);
+    m.trailT -= dt;
+    if (m.trailT <= 0) { m.trailT = 0.035; world.dots.push({ p: madd(m.pos, m.f, -14), v: scl(randDir(), 8), life: 0.7, col: chance(0.3) ? LGREY : GREY }); }
+    // osumat
+    for (const p of players) {
+      if (p.dead || (p === m.owner && m.age < 1.2)) continue;
+      if (vlen(sub(p.pos, m.pos)) < p.hitR + 12) { killMissile(m); damage(p, m.def.dmg * rnd(0.9, 1.1), m.owner === p ? null : m.owner); break; }
+    }
+    if (m.dead) continue;
+    if (t && t.life !== undefined && vlen(sub(t.pos, m.pos)) < 40) { killMissile(m); t.life = 0; continue; }
+    for (const r of world.rocks) if (!r.dead && vlen(sub(r.pos, m.pos)) < r.hitR) { killMissile(m); hitRock(r, m.def.dmg * 1.5); break; }
+    if (m.dead) continue;
+    if (insideStation(m.pos, 0)) { killMissile(m); continue; }
+    for (const pl of world.planets) if (vlen(sub(pl.pos, m.pos)) < pl.R) { killMissile(m); break; }
+  }
+  world.missiles = world.missiles.filter(m => !m.dead);
+}
+function updateFlares(dt) {
+  for (const f of world.flares) {
+    f.life -= dt; f.pos = madd(f.pos, f.vel, dt); f.vel = scl(f.vel, 1 - 0.5*dt);
+    f.sparkT -= dt;
+    if (f.sparkT <= 0 && f.life > 0) { f.sparkT = 0.05; world.dots.push({ p: f.pos.slice(), v: scl(randDir(), 25), life: 0.45, col: chance(0.5) ? YELLOW : ORANGE }); }
+  }
+  world.flares = world.flares.filter(f => f.life > 0);
+}
+function insideStation(pos, margin) {
+  const st = world.station, d = sub(pos, st.pos);
+  if (vlen(d) > st.model.r + margin) return null;
+  const l = toLocal(st, d); let worst = null, wd = -Infinity;
+  for (const f of st.model.parts[0].faces) { const s = dot(f.n, l) - f.d; if (s > margin) return null; if (s > wd) { wd = s; worst = f; } }
+  return { l, face: worst, depth: wd };
+}
+function collidePlayer(p) {
+  // asteroidit
+  for (const r of world.rocks) {
+    if (r.dead) continue;
+    const d = sub(p.pos, r.pos), dist = vlen(d), R = r.hitR + p.hitR * 0.6;
+    if (dist > R) continue;
+    damage(p, 12 + p.speed * 0.08, null);
+    p.pos = madd(r.pos, scl(d, 1/(dist || 1)), R + 2); p.speed *= 0.4;
+    hitRock(r, 25);
+    if (!p.dead) pmsg(p, 'TÖRMÄYS!', LRED, 1);
+    if (p.dead) return;
+  }
+  // asema
+  const st = world.station, hit = insideStation(p.pos, 30);
+  if (hit) {
+    const l = hit.l;
+    if (mode === 'victory' && p === winner && l[2] > STS * 0.75 && Math.hypot(l[0], l[1]) < 150 && dot(p.f, st.f) < -0.8 && p.speed < 230) { startDocking(); return; }
+    damage(p, 20 + p.speed * 0.1, null);
+    const n = toWorld(st, hit.face.n);
+    p.pos = madd(p.pos, n, 32 - hit.depth); p.speed *= 0.3;
+    if (!p.dead) pmsg(p, mode === 'victory' && p === winner ? 'OSU AUKKOON SUORAAN JA HITAASTI' : 'TÖRMÄYS ASEMAAN!', LRED, 2);
+  }
+  // planeetat ja aurinko
+  for (const pl of world.planets) if (vlen(sub(p.pos, pl.pos)) < pl.R) { killPlayer(p, 'TÖRMÄSIT PLANEETTAAN'); return; }
+  // toinen pelaaja
+  const o = other(p);
+  if (!o.dead && p.id === 0) {
+    const d = sub(p.pos, o.pos), dist = vlen(d);
+    if (dist < p.hitR + o.hitR) {
+      damage(p, 30, null); damage(o, 30, null);
+      const n = scl(d, 1/(dist || 1)); p.pos = madd(p.pos, n, 40); o.pos = madd(o.pos, n, -40);
+      p.speed *= 0.4; o.speed *= 0.4;
+    }
+  }
+  // taistelualueen raja
+  if (vlen(p.pos) > ARENA_R) {
+    p.boundT -= 1/60;
+    if (p.boundT <= 0) { p.boundT = 1; damage(p, 6, null); pmsg(p, 'PALAA TAISTELUALUEELLE!', LRED, 1); }
+  }
+}
+function updateRocks(dt) {
+  for (const r of world.rocks) {
+    if (r.dead) continue;
+    rotPitch(r, r.spin[0]*dt); rotRoll(r, r.spin[1]*dt); orthonorm(r);
+    r.pos = madd(r.pos, r.vel, dt);
+  }
+  world.rocks = world.rocks.filter(r => !r.dead);
+}
+function updateFx(dt) {
+  for (const d of world.debris) { d.p = madd(d.p, d.v, dt); d.h = rotAxis(d.h, d.ax, d.w * dt); d.life -= dt; }
+  world.debris = world.debris.filter(d => d.life > 0);
+  for (const d of world.dots) { d.p = madd(d.p, d.v, dt); d.life -= dt; }
+  world.dots = world.dots.filter(d => d.life > 0);
+  for (const pl of world.planets) rotYaw(pl.ori, 0.015 * dt);
+  rotRoll(world.station, 0.18 * dt); orthonorm(world.station);
+}
+function updateGame(dt) {
+  for (const p of players) {
+    if (p.dead) { p.deathT += dt; p.msgT -= dt; continue; }
+    if (mode === 'fight' || (mode === 'victory' && p === winner)) controlPlayer(p, dt);
+    movePlayer(p, dt);
+    if (mode === 'fight') updateLock(p, dt); else { p.lockP = 0; p.locked = false; }
+    // saapuvien ohjusten varoitus
+    if (world.missiles.some(m => m.target === p && vlen(sub(m.pos, p.pos)) < 6000) && p.warnT <= 0) { SFX.alarm(panOf(p)); p.warnT = 0.9; }
+  }
+  for (const p of players) if (!p.dead) { collidePlayer(p); if (mode === 'docking') return; }
+  updateMissiles(dt); updateFlares(dt); updateRocks(dt); updateFx(dt);
+  if (mode === 'fight') {
+    const alive = players.filter(p => !p.dead);
+    if (alive.length === 0) toDraw('MOLEMMAT ALUKSET TUHOUTUIVAT');
+    else if (alive.length === 1) toVictory(alive[0]);
+  } else if (mode === 'victory' && winner.dead) toDraw('VOITTAJA TUHOUTUI - PALKINTO JÄI NOUTAMATTA');
+}
+function toVictory(w) {
+  mode = 'victory'; modeT = 0; winner = w; wins[w.id]++; saveScore();
+  pmsg(w, 'VOITIT! LENNÄ ASEMALLE NOUTAMAAN PALKINTO', LGREEN, 6);
+  setTimeout(() => SFX.jingle(), 900);
+}
+function toDraw(reason) { mode = 'draw'; modeT = 0; drawReason = reason; }
+function startDocking() {
+  mode = 'docking'; modeT = 0; SFX.launch();
+  const w = winner;
+  const hullB = Math.round(w.hull) * 40, misB = w.missiles * 250, flareB = w.flares * 100;
+  prize = { id: w.id, base: 5000, hullB, misB, flareB, total: 5000 + hullB + misB + flareB };
+  totals[w.id] += prize.total; saveScore();
+}
+// ===================== 3D-PIIRTO =====================
+const CAM = { pos:[0,0,0], r:[1,0,0], u:[0,1,0], f:[0,0,1], cx:199, cy:114, F:FOCAL, hw:199, hh:114 };
+function setView(i, pos, o) {
+  CAM.pos = pos; CAM.r = o.r; CAM.u = o.u; CAM.f = o.f;
+  CAM.cx = VX[i] + VW/2; CAM.cy = VH/2; CAM.F = FOCAL; CAM.hw = VW/2; CAM.hh = VH/2;
+}
+function camSpace(p) { const d = sub(p, CAM.pos); return [dot(d, CAM.r), dot(d, CAM.u), dot(d, CAM.f)]; }
+const project = c => [CAM.cx + c[0] * CAM.F / c[2], CAM.cy - c[1] * CAM.F / c[2]];
+function line3(a, b, col) {
+  if (a[2] < NEAR && b[2] < NEAR) return;
+  if (a[2] < NEAR) { const t = (NEAR - a[2]) / (b[2] - a[2]); a = [a[0] + (b[0]-a[0])*t, a[1] + (b[1]-a[1])*t, NEAR]; }
+  else if (b[2] < NEAR) { const t = (NEAR - b[2]) / (a[2] - b[2]); b = [b[0] + (a[0]-b[0])*t, b[1] + (a[1]-b[1])*t, NEAR]; }
+  const p = project(a), q = project(b);
+  line(p[0], p[1], q[0], q[1], col);
+}
+function drawModel(e, baseCol, dcolOverride) {
+  const m = e.model, c = camSpace(e.pos);
+  if (c[2] < -m.r) return;
+  if (c[2] > m.r) {
+    const s = CAM.F / c[2];
+    if (m.r * s < 1.2) { const p = project(c); pset(p[0], p[1], baseCol); return; }
+    if ((Math.abs(c[0]) - m.r) * s > CAM.hw + 2 || (Math.abs(c[1]) - m.r) * s > CAM.hh + 2) return;
+  }
+  const M = [[dot(e.r, CAM.r), dot(e.u, CAM.r), dot(e.f, CAM.r)],
+             [dot(e.r, CAM.u), dot(e.u, CAM.u), dot(e.f, CAM.u)],
+             [dot(e.r, CAM.f), dot(e.u, CAM.f), dot(e.f, CAM.f)]];
+  const tf = v => [c[0] + M[0][0]*v[0] + M[0][1]*v[1] + M[0][2]*v[2],
+                   c[1] + M[1][0]*v[0] + M[1][1]*v[1] + M[1][2]*v[2],
+                   c[2] + M[2][0]*v[0] + M[2][1]*v[1] + M[2][2]*v[2]];
+  const lc = toLocal(e, sub(CAM.pos, e.pos));
+  const small = c[2] > 0 && m.r * CAM.F / c[2] < 4;
+  const parts = m.parts.length > 1 ? m.parts.slice().sort((a, b) => vlen(sub(b.cen, lc)) - vlen(sub(a.cen, lc))) : m.parts;
+  for (const pt of parts) {
+    const col = pt.col !== undefined ? pt.col : baseCol;
+    const dcol = dcolOverride !== undefined ? dcolOverride : (pt.dcol !== undefined ? pt.dcol : col);
+    const vis = pt.faces.map(f => dot(f.n, sub(lc, f.p)) > 0);
+    const cvv = pt.v.map(tf);
+    if (!small && !pt.nofill && cvv.every(v => v[2] > NEAR)) {
+      const pr = cvv.map(project);
+      pt.faces.forEach((f, i) => { if (vis[i]) fillPoly(f.idx.map(k => pr[k]), BLACK); });
+    }
+    for (const ed of pt.edges) if (vis[ed.f1] || vis[ed.f2]) line3(cvv[ed.a], cvv[ed.b], col);
+    for (const d of pt.decals) if (vis[d.f]) line3(tf(d.a), tf(d.b), dcol);
+  }
+}
+function sphereScreen(pos, R) {
+  const c = camSpace(pos), d = vlen(c);
+  if (c[2] <= 0 || d <= R) return null;
+  const p = project(c);
+  return { c, p, r: CAM.F * R / Math.sqrt(Math.max(1, c[2]*c[2] - R*R)) * Math.min(1.6, d / c[2]) };
+}
+// ympyrä planeetan pinnalla (vain näkyvä puolisko)
+function surfRing(pl, ax, bx, center, rad, col, seg = 48) {
+  let prev = null;
+  for (let i = 0; i <= seg; i++) {
+    const t = i / seg * Math.PI * 2;
+    const w = add(center, add(scl(ax, Math.cos(t) * rad), scl(bx, Math.sin(t) * rad)));
+    const vis = dot(sub(w, pl.pos), sub(CAM.pos, w)) > 0;
+    const cp = camSpace(w);
+    if (vis && prev) line3(prev, cp, col);
+    prev = vis ? cp : null;
+  }
+}
+function drawBody(pl) {
+  const s = sphereScreen(pl.pos, pl.R);
+  if (s) {
+    if (s.r < 1.2) { pset(s.p[0], s.p[1], pl.col); return; }
+    if (s.p[0] + s.r < CAM.cx - CAM.hw || s.p[0] - s.r > CAM.cx + CAM.hw || s.p[1] + s.r < 0 || s.p[1] - s.r > VH) { if (!pl.rings) return; }
+    else {
+      circle(s.p[0], s.p[1], s.r, pl.col, BLACK);
+      if (s.r >= 6) {
+        const o = pl.ori, R = pl.R;
+        const lat = (la, col) => surfRing(pl, o.r, o.f, madd(pl.pos, o.u, R * Math.sin(la)), R * Math.cos(la), col);
+        if (pl.style === 'giant') { for (const la of [-0.95, -0.62, -0.3, -0.08, 0.16, 0.42, 0.72, 1.0]) lat(la, la === 0.16 || la === -0.08 ? pl.col2 : pl.col); }
+        else if (pl.style === 'globe') {
+          lat(0, pl.col); lat(0.6, pl.col); lat(-0.6, pl.col);
+          surfRing(pl, o.u, o.f, pl.pos, R, pl.col); surfRing(pl, o.u, o.r, pl.pos, R, pl.col);
+          surfRing(pl, o.u, norm(add(o.r, o.f)), pl.pos, R, DGREY); surfRing(pl, o.u, norm(sub(o.r, o.f)), pl.pos, R, DGREY);
+        } else {
+          lat(0, DGREY);
+          for (const cr of pl.craters) {
+            const n = norm(cr), ax = norm(cross(n, [0, 1, 0.01])), bx = cross(n, ax);
+            surfRing(pl, ax, bx, madd(pl.pos, n, R * Math.cos(cr[3])), R * Math.sin(cr[3]), LGREY, 20);
+          }
+        }
+      }
+    }
+  }
+  if (pl.rings) {
+    const o = pl.ori, dc = vlen(sub(pl.pos, CAM.pos));
+    for (const [k, col] of [[1.35, DGREY], [1.5, GREY], [1.62, pl.ringCol], [1.85, pl.ringCol], [2.05, GREY]]) {
+      let prev = null; const rad = pl.R * k;
+      for (let i = 0; i <= 96; i++) {
+        const t = i / 96 * Math.PI * 2, w = add(pl.pos, add(scl(o.r, Math.cos(t) * rad), scl(o.f, Math.sin(t) * rad)));
+        const cp = camSpace(w);
+        let vis = true;
+        if (s && cp[2] > NEAR) { const q = project(cp); if (Math.hypot(q[0] - s.p[0], q[1] - s.p[1]) < s.r && vlen(sub(w, CAM.pos)) > dc) vis = false; }
+        if (vis && prev) line3(prev, cp, col);
+        prev = vis ? cp : null;
+      }
+    }
+  }
+}
+function drawSun() {
+  const s = sphereScreen(world.sun.pos, world.sun.R);
+  if (!s) return;
+  if (s.r < 1.5) { pset(s.p[0], s.p[1], YELLOW); return; }
+  const y0 = Math.max(clipY0, Math.ceil(s.p[1] - s.r)), y1 = Math.min(clipY1, Math.floor(s.p[1] + s.r));
+  for (let y = y0; y <= y1; y++) {
+    const dy = y - s.p[1], w = Math.sqrt(Math.max(0, s.r*s.r - dy*dy));
+    const j = s.r > 4 ? rnd(-1.5, 2.5) * (1 + s.r * 0.006) : 0;
+    hline(s.p[0] - w - j, s.p[0] + w + j, y, ORANGE);
+    hline(s.p[0] - w*0.8, s.p[0] + w*0.8, y, YELLOW);
+    if (w > 3) hline(s.p[0] - w*0.5, s.p[0] + w*0.5, y, WHITE);
+  }
+}
+function drawSkyPoints(list) {
+  for (const s of list) {
+    const z = dot(s.d, CAM.f); if (z < 0.2) continue;
+    pset(CAM.cx + dot(s.d, CAM.r) * CAM.F / z, CAM.cy - dot(s.d, CAM.u) * CAM.F / z, s.c);
+  }
+}
+function drawComet() {
+  const c = world.comet, cp = camSpace(c.pos);
+  if (cp[2] < NEAR) return;
+  const tb = norm(cross(c.tail, [0, 1, 0]));
+  for (let k = -2; k <= 2; k++) {
+    const end = madd(madd(c.pos, c.tail, 9000 - Math.abs(k) * 1500), tb, k * 700);
+    line3(cp, camSpace(end), k === 0 ? LBLUE : (Math.abs(k) === 1 ? BLUE : PURPLE));
+  }
+  const q = project(cp); pset(q[0], q[1], WHITE); pset(q[0]+1, q[1], LGREY); pset(q[0], q[1]+1, LGREY);
+}
+function drawEngine(p) {
+  if (p.dead) return;
+  const len = 6 + p.speed * 0.07;
+  for (const e of p.def.exh) {
+    const a = add(p.pos, toWorld(p, e));
+    const b = madd(a, p.f, -len * rnd(0.7, 1.2));
+    line3(camSpace(a), camSpace(b), chance(0.5) ? ORANGE : YELLOW);
+    line3(camSpace(madd(a, p.u, 2)), camSpace(madd(a, p.f, -len * 0.5)), LRED);
+  }
+}
+function drawWorld(viewer, dust) {
+  drawSkyPoints(SKY.stars); drawSkyPoints(SKY.gal);
+  drawSun(); drawComet();
+  const bodies = world.planets.map(pl => [vlen(sub(pl.pos, CAM.pos)), pl]).sort((a, b) => b[0] - a[0]);
+  for (const [, pl] of bodies) drawBody(pl);
+  if (dust) {
+    const sl = Math.min(80, viewer.speed * 0.05);
+    for (const d of dust) {
+      const c = camSpace(d); if (c[2] < 8) continue;
+      const col = c[2] < 300 ? LGREY : (c[2] < 650 ? GREY : DGREY);
+      if (sl >= 4) line3(c, camSpace(madd(d, viewer.f, sl)), col);
+      else { const q = project(c); pset(q[0], q[1], col); }
+    }
+  }
+  const list = [];
+  for (const r of world.rocks) list.push([r, LGREY]);
+  list.push([world.station, WHITE]);
+  for (const p of players) if (!p.dead && p !== viewer) list.push([p, p.def.col, 'ship']);
+  for (const m of world.missiles) list.push([m, viewer && m.target === viewer ? LRED : WHITE]);
+  list.sort((a, b) => vlen(sub(b[0].pos, CAM.pos)) - vlen(sub(a[0].pos, CAM.pos)));
+  for (const [e, col, kind] of list) {
+    drawModel(e, col, e === world.station ? LBLUE : undefined);
+    if (kind === 'ship') drawEngine(e);
+  }
+  for (const d of world.debris) {
+    if (d.life < 0.5 && Math.random() < 0.4) continue;
+    line3(camSpace(add(d.p, d.h)), camSpace(sub(d.p, d.h)), d.col);
+  }
+  const dc = [YELLOW, WHITE, ORANGE, LRED];
+  for (const d of world.dots) { const c = camSpace(d.p); if (c[2] > NEAR) { const q = project(c); pset(q[0], q[1], d.col !== undefined ? d.col : dc[(Math.random()*4)|0]); } }
+  for (const f of world.flares) {
+    const c = camSpace(f.pos); if (c[2] < NEAR) continue;
+    const q = project(c), s = Math.max(1, Math.min(6, 900 / c[2])), col = chance(0.5) ? WHITE : YELLOW;
+    line(q[0] - s, q[1], q[0] + s, q[1], col); line(q[0], q[1] - s, q[0], q[1] + s, col);
+    if (s > 2) { line(q[0] - s*0.6, q[1] - s*0.6, q[0] + s*0.6, q[1] + s*0.6, ORANGE); line(q[0] - s*0.6, q[1] + s*0.6, q[0] + s*0.6, q[1] - s*0.6, ORANGE); }
+  }
+  // muiden pelaajien laserit maailmassa
+  for (const p of players) if (p !== viewer && !p.dead && p.beamT > 0 && p.beamEnd) {
+    for (const g of p.def.guns) line3(camSpace(add(p.pos, toWorld(p, g))), camSpace(p.beamEnd), p.laser.col);
+  }
+}
+// ---- HUD ----
+function edgeArrow(c, col, label) {
+  let dx = c[0], dy = -c[1];
+  if (Math.abs(dx) + Math.abs(dy) < 1e-6) dy = 1;
+  const l = Math.hypot(dx, dy); dx /= l; dy /= l;
+  const k = Math.min((CAM.hw - 14) / Math.max(1e-6, Math.abs(dx)), (CAM.hh - 14) / Math.max(1e-6, Math.abs(dy)));
+  const px = CAM.cx + dx * k, py = CAM.cy + dy * k;
+  const tx = px + dx * 7, ty = py + dy * 7, bx = px - dx * 4, by = py - dy * 4;
+  line(tx, ty, bx - dy * 6, by + dx * 6, col); line(tx, ty, bx + dy * 6, by - dx * 6, col); line(bx - dy * 6, by + dx * 6, bx + dy * 6, by - dx * 6, col);
+  if (label) text(Math.round(px - dx * 18 - label.length * 4), Math.round(py - dy * 14 - 4), label, col);
+}
+function markTarget(pos, r, col, label, p, isOpp) {
+  const c = camSpace(pos);
+  const on = c[2] > NEAR && Math.abs(project(c)[0] - CAM.cx) < CAM.hw - 4 && Math.abs(project(c)[1] - CAM.cy) < CAM.hh - 4;
+  if (!on) { edgeArrow(c, col, label); return; }
+  const q = project(c), s = Math.max(7, Math.min(60, r * CAM.F / c[2] + 3));
+  const L = Math.max(3, s * 0.35);
+  for (const [sx, sy] of [[-1,-1],[1,-1],[-1,1],[1,1]]) {
+    const x = q[0] + sx * s, y = q[1] + sy * s;
+    line(x, y, x - sx * L, y, col); line(x, y, x, y - sy * L, col);
+  }
+  const dist = vlen(sub(pos, p.pos));
+  textC(Math.round(q[1] + s + 3), (label ? label + ' ' : '') + Math.round(dist) + 'M', col, 1, q[0] - 100, 200);
+  if (isOpp && p.lockP > 0) {
+    if (p.locked) {
+      const b = (modeT * 8 | 0) % 2 ? LRED : YELLOW, d = s + 5;
+      line(q[0], q[1] - d, q[0] + d, q[1], b); line(q[0] + d, q[1], q[0], q[1] + d, b);
+      line(q[0], q[1] + d, q[0] - d, q[1], b); line(q[0] - d, q[1], q[0], q[1] - d, b);
+      textC(Math.round(q[1] - s - 12), 'LUKITTU', b, 1, q[0] - 60, 120);
+    } else {
+      const d = s + (1 - p.lockP) * 40;
+      rect(Math.round(q[0] - d), Math.round(q[1] - d), Math.round(d * 2), Math.round(d * 2), YELLOW);
+    }
+  }
+}
+function drawCrosshair(p) {
+  const cx = CAM.cx, cy = CAM.cy, col = p.overheat ? ORANGE : WHITE;
+  if (p.id === 0) {
+    hline(cx - 12, cx - 4, cy, col); hline(cx + 4, cx + 12, cy, col); line(cx, cy - 12, cx, cy - 4, col); line(cx, cy + 4, cx, cy + 12, col);
+    hline(cx - 20, cx - 16, cy - 8, GREY); hline(cx + 16, cx + 20, cy - 8, GREY);
+  } else {
+    circle(cx, cy, 9, col); pset(cx, cy, col);
+    line(cx - 16, cy, cx - 11, cy, col); line(cx + 11, cy, cx + 16, cy, col); line(cx, cy + 11, cx, cy + 16, col);
+  }
+}
+function drawOwnBeam(p) {
+  if (p.beamT <= 0 || !p.beamEnd) return;
+  const c = camSpace(p.beamEnd); if (c[2] < NEAR) return;
+  const q = project(c), col = p.laser.col, x0 = VX[p.id];
+  if (p.id === 0) { line(x0 + 40, VH - 1, q[0], q[1], col); line(x0 + VW - 40, VH - 1, q[0], q[1], col); }
+  else { line(x0 + VW/2 - 2, VH - 1, q[0], q[1], col); line(x0 + VW/2 + 2, VH - 1, q[0], q[1], col); line(x0 + 10, VH - 30, q[0], q[1], col); line(x0 + VW - 10, VH - 30, q[0], q[1], col); }
+  if (p.laser.wide) circle(q[0], q[1], 3, col);
+}
+function drawApproach(st) {
+  for (let k = 1; k <= 6; k++) {
+    const c = madd(st.pos, st.f, STS + 320 * k), hx = 0.36 * STS + k * 18, hy = 0.14 * STS + k * 8;
+    const pts = [[-1,-1],[1,-1],[1,1],[-1,1]].map(([a, b]) => camSpace(add(c, add(scl(st.r, a * hx), scl(st.u, b * hy)))));
+    const col = (modeT * 6 - k | 0) % 6 === 0 ? LGREEN : GREEN;
+    for (let i = 0; i < 4; i++) line3(pts[i], pts[(i+1) % 4], col);
+  }
+}
+function drawPlayerView(i) {
+  const p = players[i], x0 = VX[i];
+  setClip(x0, 0, x0 + VW - 1, VH - 1);
+  fillRect(x0, 0, VW, VH, BLACK);
+  const chase = p.dead && winner && !winner.dead && p.deathT > 2.5 && (mode === 'victory' || mode === 'docking');
+  if (chase) {
+    const w = winner, pos = add(w.pos, add(scl(w.f, -240), scl(w.u, 60)));
+    setView(i, pos, oriFromForward(sub(madd(w.pos, w.f, 300), pos), w.u));
+    drawWorld(null, null);
+  } else {
+    setView(i, p.pos, p);
+    drawWorld(p.dead ? null : p, p.dead ? null : p.dust);
+  }
+  const blink = (modeT * 4 | 0) % 2;
+  if (!p.dead) {
+    drawOwnBeam(p);
+    const o = other(p);
+    if (mode === 'victory' && p === winner) {
+      const st = world.station, d = vlen(sub(st.pos, p.pos));
+      if (d < 12000) drawApproach(st);
+      markTarget(st.pos, STS, CYAN, 'ASEMA', p, false);
+    } else if (!o.dead) markTarget(o.pos, o.hitR, LRED, 'P' + (o.id + 1), p, true);
+    for (const m of world.missiles) if (m.target === p) { const c = camSpace(m.pos); if (c[2] <= NEAR || Math.abs(project(c)[0] - CAM.cx) > CAM.hw) edgeArrow(c, blink ? LRED : WHITE, ''); }
+    drawCrosshair(p);
+    text(x0 + 4, 3, 'P' + (i + 1) + ' ' + p.def.name, p.def.col);
+    if (world.missiles.some(m => m.target === p) && blink) textR(x0 + VW - 4, 3, 'OHJUS!', LRED);
+    else if (o.locked && !o.dead && mode === 'fight') textR(x0 + VW - 4, 3, 'LUKITTU!', blink ? LRED : ORANGE);
+    if (mode === 'victory' && p === winner) textC(16, 'TELAKOIDU ASEMALLE', blink ? LGREEN : GREEN, 1, x0, VW);
+  } else {
+    if (chase) { textC(16, 'PELAAJA ' + (winner.id + 1) + ' VOITTI', winner.def.col, 1, x0, VW); textC(28, 'SEURATAAN VOITTAJAA', GREY, 1, x0, VW); }
+    else textC(60, 'TUHOUTUIT', blink ? LRED : WHITE, 3, x0, VW);
+  }
+  if (mode === 'countdown') {
+    const n = 3 - Math.floor(modeT);
+    textC(80, n > 0 ? String(n) : 'TAISTELU!', n > 0 ? YELLOW : LGREEN, n > 0 ? 5 : 3, x0, VW);
+    textC(150, 'LASER: ' + p.laser.nm + '  OHJUS: ' + p.mis.nm, GREY, 1, x0, VW);
+  }
+  if (mode === 'fight' && modeT < 1) textC(80, 'TAISTELU!', LGREEN, 3, x0, VW);
+  if (mode === 'draw') { textC(70, 'EI VOITTAJAA', blink ? LRED : WHITE, 2, x0, VW); textC(100, drawReason, ORANGE, 1, x0, VW); }
+  if (p.msgT > 0) {
+    const bl = p.msgCol === LRED && (p.msgT * 6 | 0) % 2 === 0;
+    if (!bl) { const tw = p.msg.length * 8; fillRect(x0 + VW/2 - tw/2 - 3, VH - 18, tw + 6, 11, BLACK); textC(VH - 16, p.msg, p.msgCol, 1, x0, VW); }
+  }
+  rect(x0, 0, VW, VH, p.hitFlash > 0 ? LRED : p.def.frame);
+  if (p.id === 1) rect(x0 + 2, 2, VW - 4, VH - 4, DGREY);
+  fullClip();
+}
+// ---- Kojelauta (pelaajien kojelaudat poikkeavat hieman toisistaan) ----
+function bar(x, y, w, frac, col) { frac = clamp(frac, 0, 1); fillRect(x, y, w, 5, BLACK); rect(x - 1, y - 1, w + 2, 7, DGREY); if (frac > 0) fillRect(x, y, Math.max(1, Math.round(w * frac)), 5, col); }
+function boxes(x, y, n, max, col, w = 6) { for (let k = 0; k < max; k++) { if (k < n) fillRect(x + k * (w + 2), y, w, 5, col); else rect(x + k * (w + 2), y, w, 5, DGREY); } }
+function radarItems(p) {
+  const out = [], blink = (modeT * 8 | 0) % 2;
+  const o = other(p);
+  if (!o.dead) out.push([o.pos, LRED, 3]);
+  out.push([world.station.pos, CYAN, 4]);
+  for (const r of world.rocks) out.push([r.pos, r.size === 0 ? LGREY : GREY, r.size === 0 ? 3 : 2]);
+  for (const m of world.missiles) out.push([m.pos, m.target === p ? (blink ? LRED : WHITE) : WHITE, 2]);
+  for (const f of world.flares) out.push([f.pos, YELLOW, 1]);
+  return out.map(([pos, c, s]) => [toLocal(p, sub(pos, p.pos)), c, s]);
+}
+function drawDash(i) {
+  const p = players[i], x0 = VX[i], y0 = VH;
+  setClip(x0, y0, x0 + VW - 1, H - 1);
+  fillRect(x0, y0, VW, H - VH, BLACK);
+  const frame = p.def.frame, blink = (modeT * 4 | 0) % 2;
+  rect(x0, y0 + 1, VW, H - VH - 1, frame);
+  const barsX = i === 0 ? x0 + 6 : x0 + VW - 120, infoX = i === 0 ? x0 + VW - 112 : x0 + 6;
+  const rows = [['KILPI', p.shield / 100, p.shield < 25 ? LRED : LGREEN],
+                ['RUNKO', p.hull / 100, p.hull < 30 ? LRED : (i === 0 ? CYAN : YELLOW)],
+                ['LÄMPÖ', p.heat / 100, p.overheat ? (blink ? LRED : ORANGE) : (p.heat > 70 ? ORANGE : GREEN)],
+                ['NOPEUS', p.speed / MAXSPD, YELLOW]];
+  rows.forEach((r, k) => { const y = y0 + 6 + k * 11; text(barsX, y, r[0], i === 0 ? CYAN : YELLOW); bar(barsX + 52, y + 1, 60, r[1], r[2]); });
+  let y = y0 + 6 + 4 * 11;
+  text(barsX, y, 'OHJ', i === 0 ? CYAN : YELLOW);
+  boxes(barsX + 30, y + 1, p.missiles, p.mis.cnt, p.locked ? (blink ? LRED : YELLOW) : LGREEN, p.mis.cnt > 6 ? 6 : 9);
+  y += 11; text(barsX, y, 'SOI', i === 0 ? CYAN : YELLOW); boxes(barsX + 30, y + 1, p.flares, 8, YELLOW, 7);
+  y += 11;
+  if (p.mis.guided) { text(barsX, y, 'LUK', i === 0 ? CYAN : YELLOW); bar(barsX + 30, y + 1, 82, p.lockP, p.locked ? LRED : ORANGE); }
+  else text(barsX, y, 'RAKETIT: SUORALENTO', GREY);
+  // tietosarake
+  text(infoX, y0 + 6, p.laser.nm, p.laser.col); text(infoX + 68, y0 + 6, '*'.repeat(p.laser.tier), TIERCOL[p.laser.tier]);
+  text(infoX, y0 + 17, p.mis.nm, WHITE); text(infoX + 68, y0 + 17, '*'.repeat(p.mis.tier), TIERCOL[p.mis.tier]);
+  text(infoX, y0 + 30, 'VOITOT ' + wins[i], LGREEN);
+  // kompassi: vastustaja tai voittajalle asema
+  const tgt = (mode === 'victory' && p === winner) ? world.station.pos : (!other(p).dead ? other(p).pos : null);
+  const ccx = infoX + 12, ccy = y0 + 62;
+  circle(ccx, ccy, 10, GREY); line(ccx - 13, ccy, ccx - 11, ccy, DGREY); line(ccx + 11, ccy, ccx + 13, ccy, DGREY);
+  if (tgt && !p.dead) {
+    const d = norm(toLocal(p, sub(tgt, p.pos)));
+    fillRect(Math.round(ccx + d[0] * 8) - 1, Math.round(ccy - d[1] * 8) - 1, 3, 3, d[2] >= 0 ? LGREEN : LRED);
+    text(infoX + 28, ccy - 9, (mode === 'victory' && p === winner) ? 'ASEMA' : 'KOHDE', GREY);
+    text(infoX + 28, ccy + 2, (vlen(sub(tgt, p.pos)) / 1000).toFixed(1) + ' KM', WHITE);
+  }
+  // tutka
+  const rcx = x0 + VW/2, rcy = y0 + 46;
+  setClip(x0 + 128, y0 + 3, x0 + VW - 128, H - 3);
+  const items = p.dead ? [] : radarItems(p);
+  if (i === 0) {
+    // Elite-tyylinen ellipsitutka varsilla
+    const rx = 70, ry = 26;
+    ellipse(rcx, rcy, rx, ry, GREEN); ellipse(rcx, rcy, rx * 0.5, ry * 0.5, DGREY, 32);
+    line(rcx, rcy - ry, rcx, rcy + ry, DGREY); line(rcx - rx, rcy, rcx + rx, rcy, DGREY);
+    line(rcx, rcy, rcx - 44, rcy - 20, DGREY); line(rcx, rcy, rcx + 44, rcy - 20, DGREY);
+    for (const [l, c, s] of items) {
+      if (Math.abs(l[0]) > RADAR_R || Math.abs(l[1]) > RADAR_R || Math.abs(l[2]) > RADAR_R) continue;
+      const sx = Math.round(rcx + l[0] / RADAR_R * rx), sy = Math.round(rcy - l[2] / RADAR_R * ry), ty = Math.round(sy - l[1] / RADAR_R * 30);
+      line(sx, sy, sx, ty, c); fillRect(sx - 1, ty - 1, s, 2, c);
+    }
+  } else {
+    // pyöreä karttatutka, korkeus merkitty täytöllä
+    const rr = 40;
+    circle(rcx, rcy, rr, GREEN); circle(rcx, rcy, rr * 0.5, DGREY);
+    line(rcx - rr, rcy, rcx + rr, rcy, DGREY); line(rcx, rcy - rr, rcx, rcy + rr, DGREY);
+    const sweep = modeT * 2.5; line(rcx, rcy, rcx + Math.cos(sweep) * rr, rcy + Math.sin(sweep) * rr, GREEN);
+    for (const [l, c, s] of items) {
+      const sx = l[0] / RADAR_R * rr, sy = -l[2] / RADAR_R * rr;
+      if (Math.hypot(sx, sy) > rr || Math.abs(l[1]) > RADAR_R) continue;
+      const X = Math.round(rcx + sx), Y = Math.round(rcy + sy);
+      if (l[1] >= 0) fillRect(X - 1, Y - 1, s, s, c); else rect(X - 1, Y - 1, s + 1, s + 1, c);
+    }
+  }
+  pset(rcx, rcy, WHITE);
+  fullClip();
+}
+// ===================== RUUDUT =====================
+function drawSelect(i) {
+  const x0 = VX[i], s = sel[i], d = SHIPDEF[i], blink = (modeT * 3 | 0) % 2;
+  setClip(x0, 0, x0 + VW - 1, H - 1); fillRect(x0, 0, VW, H, BLACK);
+  textC(5, 'PELAAJA ' + (i + 1) + ' - ' + d.name, d.col, 1, x0, VW);
+  hline(x0 + 4, x0 + VW - 5, 15, d.frame);
+  // esikatselu
+  Object.assign(CAM, { pos: [0,0,0], r: [1,0,0], u: [0,1,0], f: [0,0,1], cx: x0 + VW/2, cy: 48, F: 220, hw: VW/2, hh: 40 });
+  setClip(x0 + 2, 17, x0 + VW - 3, 80);
+  const pe = { model: d.model, pos: [0, 0, 330], ...newOri() };
+  rotYaw(pe, modeT * 0.8 + i * 3); rotPitch(pe, 0.35); rotRoll(pe, Math.sin(modeT * 0.6) * 0.25);
+  drawModel(pe, d.col);
+  setClip(x0, 0, x0 + VW - 1, H - 1);
+  const used = LASERS[s.laser].tier + MISSILES[s.mis].tier;
+  const row = (idx, y, it, chosen) => {
+    if (chosen) fillRect(x0 + 3, y - 1, VW - 6, 9, BLUE);
+    if (s.cur === idx && !s.ready) text(x0 + 5, y, '>', blink ? WHITE : YELLOW);
+    text(x0 + 16, y, it.nm, chosen ? WHITE : LGREY);
+    text(x0 + 92, y, '*'.repeat(it.tier), TIERCOL[it.tier]);
+    text(x0 + 132, y, it.desc, chosen ? LGREY : GREY);
+  };
+  text(x0 + 6, 84, 'LASERIT', d.col);
+  LASERS.forEach((L, k) => row(k, 95 + k * 9, L, s.laser === k));
+  text(x0 + 6, 153, 'OHJUKSET', d.col);
+  MISSILES.forEach((M, k) => row(6 + k, 164 + k * 9, M, s.mis === k));
+  text(x0 + 6, 222, 'TEHOPISTEET ' + used + '/' + BUDGET, used >= BUDGET ? YELLOW : LGREEN);
+  text(x0 + 140, 222, 'VAIN TOINEN VOI OLLA TEHOKAS', GREY);
+  const it = s.cur < 6 ? LASERS[s.cur] : MISSILES[s.cur - 6];
+  hline(x0 + 4, x0 + VW - 5, 233, DGREY);
+  if (s.cur < 6) text(x0 + 6, 238, 'VAHINKO/S ' + Math.round(it.dmg / it.cd) + '   KANTAMA ' + it.range + 'M   KUUMENEE ' + Math.round(it.heat / it.cd), LGREY);
+  else text(x0 + 6, 238, 'VAHINKO ' + it.dmg * (it.swarm || 1) + '  MÄÄRÄ ' + it.cnt + '  SOIHTUSIETO ' + (it.guided ? Math.round(it.resist * 100) + '%' : '-'), LGREY);
+  text(x0 + 6, 249, 'NYÖKKÄYS: ' + (s.invert ? 'KÄÄNNETTY (YLÖS=YLÖS)' : 'LENTOKONE (YLÖS=ALAS)'), GREY);
+  if (s.msgT > 0) textC(260, s.msg, ORANGE, 1, x0, VW);
+  const help = i === 0 ? ['W/S SELAA  VÄLILYÖNTI VALITSE  X VALMIS', 'Q = VAIHDA NYÖKKÄYSSUUNTA']
+                       : ['NUOLET SELAA  ENTER VALITSE  OIK.SHIFT VALMIS', ', (PILKKU) = VAIHDA NYÖKKÄYSSUUNTA'];
+  text(x0 + 6, 274, help[0], CYAN); text(x0 + 6, 284, help[1], CYAN);
+  if (s.ready) textC(300, 'VALMIS! ODOTETAAN VASTUSTAJAA', blink ? LGREEN : GREEN, 1, x0, VW);
+  else textC(300, 'VALITSE ASEET', blink ? YELLOW : ORANGE, 1, x0, VW);
+  rect(x0, 0, VW, H, d.frame);
+  fullClip();
+}
+function selChoose(i) {
+  const s = sel[i];
+  if (s.cur < 6) {
+    s.laser = s.cur;
+    if (LASERS[s.laser].tier + MISSILES[s.mis].tier > BUDGET) {
+      const lim = BUDGET - LASERS[s.laser].tier; let best = 0;
+      MISSILES.forEach((M, k) => { if (M.tier <= lim && M.tier >= MISSILES[best].tier) best = k; });
+      s.mis = best; s.msg = 'OHJUS VAIHDETTU: ' + MISSILES[best].nm; s.msgT = 2;
+    }
+  } else {
+    s.mis = s.cur - 6;
+    if (LASERS[s.laser].tier + MISSILES[s.mis].tier > BUDGET) {
+      const lim = BUDGET - MISSILES[s.mis].tier; let best = 0;
+      LASERS.forEach((L, k) => { if (L.tier <= lim && L.tier >= LASERS[best].tier) best = k; });
+      s.laser = best; s.msg = 'LASER VAIHDETTU: ' + LASERS[best].nm; s.msgT = 2;
+    }
+  }
+  SFX.beep(i ? 0.6 : -0.6);
+}
+const TITLE_A = { model: MODELS.salama, pos: [-170, 0, 600], ...newOri() };
+const TITLE_B = { model: MODELS.korppi, pos: [170, 0, 600], ...newOri() };
+function drawTitle() {
+  fullClip(); fillRect(0, 0, W, H, BLACK);
+  Object.assign(CAM, { pos: [0,0,0], r: [1,0,0], u: [0,1,0], f: [0,0,1], cx: 400, cy: 120, F: 300, hw: 400, hh: 160 });
+  drawSkyPoints(SKY.stars); drawSkyPoints(SKY.gal);
+  Object.assign(TITLE_A, newOri()); Object.assign(TITLE_B, newOri());
+  rotYaw(TITLE_A, Math.PI / 2 + Math.sin(titleT * 0.7) * 0.5); rotRoll(TITLE_A, Math.sin(titleT * 0.9) * 0.4); rotPitch(TITLE_A, 0.25);
+  rotYaw(TITLE_B, -Math.PI / 2 + Math.sin(titleT * 0.6 + 1) * 0.5); rotRoll(TITLE_B, Math.sin(titleT * 0.8 + 2) * 0.4); rotPitch(TITLE_B, 0.25);
+  TITLE_A.pos = [-170, Math.sin(titleT) * 20, 600]; TITLE_B.pos = [170, Math.cos(titleT) * 20, 600];
+  setClip(0, 60, W - 1, 185);
+  drawModel(TITLE_A, CYAN); drawModel(TITLE_B, YELLOW);
+  // laserituli ruudulla välillä
+  if ((titleT % 3) < 0.15) { const a = project(camSpace(TITLE_A.pos)), b = project(camSpace(TITLE_B.pos)); line(a[0] + 30, a[1], b[0] - 30, b[1], LRED); }
+  fullClip();
+  text(Math.round((W - 12 * 32) / 2), 10, 'STELLAR DUEL', (titleT * 2 | 0) % 8 === 0 ? WHITE : YELLOW, 4);
+  textC(46, '- TÄHTIKAUPPIAS 64: KAKSINTAISTELU -', GREY);
+  textC(190, 'SALAMA  ' + wins[0] + ' - ' + wins[1] + '  KORPPI', WHITE);
+  const cl = [['PELAAJA 1 (VASEN)', CYAN, ['W S   NYÖKKÄYS', 'A D   KALLISTUS', 'Q E   SIVUKÄÄNTÖ', 'R F   KAASU / JARRU', 'VÄLILYÖNTI  LASER', 'X  OHJUS    C  SOIHDUT']],
+              ['PELAAJA 2 (OIKEA)', YELLOW, ['NUOLET  NYÖKKÄYS / KALLISTUS', ',  .    SIVUKÄÄNTÖ', 'P  Ö    KAASU / JARRU', 'ENTER   LASER', 'OIK. SHIFT  OHJUS', 'Ä  SOIHDUT  (TAI NUMPAD)']]];
+  cl.forEach(([h, c, ls], k) => {
+    const x = k === 0 ? 30 : 450;
+    text(x, 206, h, c); ls.forEach((l, j) => text(x, 218 + j * 10, l, LGREY));
+  });
+  textC(286, 'VOITTAJA TELAKOITUU ASEMALLE JA NOUTAA PALKINNON', LGREEN);
+  textC(302, 'VÄLILYÖNTI TAI ENTER = ALOITA', (titleT * 3 | 0) % 2 ? WHITE : LGREY);
+  rect(0, 0, W, H, LBLUE);
+}
+function drawTunnel(t, x0, label) {
+  setClip(x0, 0, x0 + VW - 1, H - 1); fillRect(x0, 0, VW, H, BLACK);
+  const cols = [BLUE, LBLUE, CYAN, WHITE], cx = x0 + VW/2;
+  for (let k = 0; k < 14; k++) {
+    const s = Math.pow(((t * 0.9 + k / 14) % 1), 2.2), w = s * 220, h = s * 170;
+    rect(cx - w, 160 - h, w * 2, h * 2, cols[k % 4]);
+  }
+  textC(150, label, YELLOW, 2, x0, VW);
+  rect(x0, 0, VW, H, LBLUE); fullClip();
+}
+function drawPrize() {
+  fullClip(); fillRect(0, 0, W, H, BLACK);
+  Object.assign(CAM, { pos: [0,0,0], r: [1,0,0], u: [0,1,0], f: [0,0,1], cx: 400, cy: 150, F: 300, hw: 400, hh: 160 });
+  drawSkyPoints(SKY.stars);
+  const tr = { model: MODELS.trophy, pos: [0, -14, 260], ...newOri() };
+  rotYaw(tr, modeT * 1.1); rotPitch(tr, 0.2);
+  setClip(250, 60, 550, 250); drawModel(tr, YELLOW); fullClip();
+  // välkkyvät tähdet pokaalin ympärillä
+  for (let k = 0; k < 10; k++) { const a = modeT * 0.8 + k * 0.63, r = 120 + Math.sin(modeT * 3 + k) * 10; pset(400 + Math.cos(a) * r, 150 + Math.sin(a) * r * 0.6, k % 2 ? YELLOW : WHITE); }
+  const d = SHIPDEF[prize.id];
+  textC(10, 'PALKINTOSEREMONIA', YELLOW, 3);
+  textC(42, 'VOITTAJA: PELAAJA ' + (prize.id + 1) + ' - ' + d.name, d.col, 1);
+  const lines = [['PERUSPALKKIO', prize.base], ['RUNKO EHJÄNÄ', prize.hullB], ['SÄÄSTETYT OHJUKSET', prize.misB], ['SÄÄSTETYT SOIHDUT', prize.flareB]];
+  const shown = Math.min(lines.length, Math.floor(modeT / 0.5));
+  lines.slice(0, shown).forEach(([n, v], k) => { text(40, 90 + k * 14, n, LGREY); textR(240, 90 + k * 14, v + ' CR', WHITE); });
+  if (modeT > 2.4) { hline(40, 240, 150, LBLUE); text(40, 156, 'YHTEENSÄ', YELLOW); textR(240, 156, prize.total + ' CR', YELLOW); }
+  text(570, 90, 'TILANNE', GREY);
+  text(570, 106, 'SALAMA', CYAN); textR(770, 106, wins[0] + ' VOITTOA', WHITE); textR(770, 118, totals[0] + ' CR', LGREY);
+  text(570, 136, 'KORPPI', YELLOW); textR(770, 136, wins[1] + ' VOITTOA', WHITE); textR(770, 148, totals[1] + ' CR', LGREY);
+  if (modeT > 3) textC(290, 'VÄLILYÖNTI / ENTER = UUSI KAKSINTAISTELU   ESC = ALKURUUTU', (modeT * 3 | 0) % 2 ? WHITE : LGREY);
+  rect(0, 0, W, H, YELLOW);
+}
+// ===================== SYÖTE JA SILMUKKA =====================
+window.addEventListener('keydown', ev => {
+  initAudio();
+  const c = ev.code;
+  if (!ev.ctrlKey && !ev.metaKey && !ev.altKey && !/^F([1-7]|1[0-2])$/.test(c)) ev.preventDefault();
+  keys[c] = true;
+  if (ev.repeat) return;
+  try { onKey(c); } catch (err) { console.error(err); }
+});
+window.addEventListener('keyup', ev => { keys[ev.code] = false; });
+window.addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+function goSelect() { mode = 'select'; modeT = 0; sel[0].ready = sel[1].ready = false; players = []; }
+function onKey(c) {
+  if (c === 'Digit9' || c === 'F8') { soundOn = !soundOn; return; }
+  if (c === 'Digit0' || c === 'F9') {
+    const fr = document.getElementById('frame');
+    if (document.fullscreenElement) document.exitFullscreen(); else if (fr.requestFullscreen) fr.requestFullscreen();
+    return;
+  }
+  if (mode === 'title') { if (c === 'Space' || c === 'Enter' || c === 'NumpadEnter') { goSelect(); SFX.jingle(); } return; }
+  if (mode === 'select') {
+    if (c === 'Escape') { mode = 'title'; return; }
+    const map = [{ up: 'KeyW', dn: 'KeyS', ok: 'Space', ready: 'KeyX', inv: 'KeyQ' },
+                 { up: 'ArrowUp', dn: 'ArrowDown', ok: 'Enter', ready: 'ShiftRight', inv: 'Comma' }];
+    map.forEach((m, i) => {
+      const s = sel[i], pan = i ? 0.6 : -0.6;
+      if (c === m.ready || (i === 1 && c === 'NumpadEnter')) { s.ready = !s.ready; SFX.beep(pan); return; }
+      if (s.ready) return;
+      if (c === m.up) { s.cur = (s.cur + 11) % 12; SFX.beep(pan); }
+      else if (c === m.dn) { s.cur = (s.cur + 1) % 12; SFX.beep(pan); }
+      else if (c === m.ok || (i === 1 && c === 'Numpad0')) selChoose(i);
+      else if (c === m.inv) { s.invert = !s.invert; SFX.beep(pan); }
+    });
+    if (sel[0].ready && sel[1].ready) startMatch();
+    return;
+  }
+  if (mode === 'prize') {
+    if (modeT > 1.5 && (c === 'Space' || c === 'Enter' || c === 'NumpadEnter')) { goSelect(); SFX.jingle(); }
+    else if (c === 'Escape') { mode = 'title'; titleT = 0; }
+    return;
+  }
+  if (c === 'Escape') { paused = !paused; return; }
+  if (paused) { if (c === 'Backspace') { paused = false; mode = 'title'; titleT = 0; } return; }
+  if (mode !== 'fight' && mode !== 'victory') return;
+  players.forEach((p, i) => {
+    if (p.dead || (mode === 'victory' && p !== winner)) return;
+    if (CTRL[i].mis.includes(c) && mode === 'fight') fireMissile(p);
+    if (CTRL[i].flare.includes(c)) dropFlares(p);
+  });
+}
+function step(dt) {
+  modeT += dt;
+  if (mode === 'title') { titleT += dt; return; }
+  if (mode === 'select') { for (const s of sel) s.msgT -= dt; return; }
+  if (paused) return;
+  switch (mode) {
+    case 'countdown':
+      updateRocks(dt); updateFx(dt);
+      if (Math.floor(modeT) !== Math.floor(modeT - dt) && modeT < 3.05) SFX.count();
+      if (modeT >= 3) { mode = 'fight'; modeT = 0; SFX.go(); }
+      break;
+    case 'fight': case 'victory': updateGame(dt); break;
+    case 'draw': updateGame(dt); if (modeT > 5) goSelect(); break;
+    case 'docking': if (modeT > 2) { mode = 'prize'; modeT = 0; SFX.fanfare(); } break;
+  }
+}
+function render() {
+  fullClip();
+  if (mode === 'title') drawTitle();
+  else if (mode === 'select') { drawSelect(0); drawSelect(1); }
+  else if (mode === 'prize') drawPrize();
+  else if (mode === 'docking') {
+    for (const i of [0, 1]) drawTunnel(modeT, VX[i], i === winner.id ? 'TELAKOINTI' : 'VOITTAJA TELAKOITUU');
+  } else {
+    for (const i of [0, 1]) { drawPlayerView(i); drawDash(i); }
+    if (paused) {
+      fillRect(300, 90, 200, 50, BLACK); rect(300, 90, 200, 50, YELLOW);
+      textC(100, 'TAUKO', YELLOW, 2); textC(122, 'ESC JATKA  ASKELPALAUTIN LOPETA', GREY, 1, 300, 200);
+    }
+  }
+  // keskijako
+  if (mode !== 'title' && mode !== 'prize') { fillRect(VW, 0, VX[1] - VW, H, BLACK); for (let y = 0; y < H; y += 4) pset(VW + 1 + (y >> 2) % 2, y, DGREY); }
+}
+let lastT = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000)); lastT = now;
+  try { step(dt); render(); } catch (err) { console.error(err); }
+  present();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
