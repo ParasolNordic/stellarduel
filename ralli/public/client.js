@@ -615,9 +615,9 @@ function buildScene() {
   // kaupungin pohja, puistot ja kadut (tasainen kerros, piirretään ensin)
   const inCity = Math.max(Math.abs(C[0]), Math.abs(C[2])) < CITY + 900;
   if (inCity) {
-    for (const t of cityTiles) poly(t, COLS.ground, null, { list: itemsA });
+    for (const t of cityTiles) poly(t, COLS.ground, null, { list: itemsA, bias: 1e6 });
     for (const cb of curbs) if (d2(cb.c) < 380 * 380 && front(cb.c, 60)) for (const l of cb.l) addLine(l[0], l[1], l[2], l[3], itemsA);
-    for (const p of parks) if (d2(p[0]) < 700 * 700) poly(p, COLS.park, COLS.parkE, { list: itemsA });
+    for (const p of parks) if (d2(p[0]) < 700 * 700) poly(p, COLS.park, COLS.parkE, { list: itemsA, bias: 5e5 });
     for (const r of cityRoads) if (d2([r.c[0], 0, r.c[1]]) < 900 * 900 && front([r.c[0], 0, r.c[1]], 90)) {
       const it = poly(r.pts, r.col, null, { list: itemsA, lines: d2([r.c[0], 0, r.c[1]]) < 420 * 420 ? r.lines : r.lines.slice(0, 2) });
       if (r.med) poly(r.med, COLS.median, null, { list: itemsA, bias: -0.1 });
