@@ -5,7 +5,8 @@
   "description": "Stellar Duel - vektorigrafiikkakaksintaistelu, verkkoversio",
   "main": "online/server.js",
   "scripts": {
-    "start": "node online/server.js"
+    "start": "node online/server.js",
+    "start:ralli": "node ralli/server.js"
   },
   "engines": {
     "node": ">=18"

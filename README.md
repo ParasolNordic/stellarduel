@@ -39,3 +39,13 @@ Paikallisesti: `npm install && npm start`, sitten http://localhost:3000
 **Näppäimistö:** nuolet / WASD ohjaus, Q E sivukääntö, R / Shift kaasu, F / Z jarru,
 välilyönti laser, X / Enter ohjus, C / N soihdut, Esc kahdesti = poistu.
 **Puhelin:** vasen puikko ohjaa, vasemman reunan liukusäädin on kaasu, oikealla LASER, OHJUS ja SOIHTU.
+
+## Vektoriralli (ralli/)
+
+Kolmen pelaajan 3D-vektoriautotaistelu kaupungissa ja vuoristossa, kukin omalla laitteellaan.
+Vapaa ajoalue: kaupungin katuverkko (bulevardit ja kadut), kehämoottoritie, maantiet ja vuoriston soratiet.
+Neljä autoa (kupla, maasturi, 1910-luvun veteraani, 1920-luvun faetoni), kolme asetta ja kolme erikoisasetta
+(raketit, miinat, öljy). Kestävyys laskee törmäyksistä ja osumista, lommot näkyvät autossa, ja minikartalla näkyvät muut kilpailijat.
+Viimeinen ehjä auto voittaa kierroksen.
+
+Käynnistys: `npm run start:ralli` (oletusportti 3001).
