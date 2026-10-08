@@ -23,3 +23,19 @@ Yksi HTML-tiedosto, ei riippuvuuksia: avaa `index.html` selaimessa.
 Esc = tauko, 9 = äänet, 0 = koko näyttö. Nyökkäyssuunnan voi kääntää valintaruudussa.
 
 Ohjus vaatii lukituksen: pidä vastustaja tähtäimen lähellä, kunnes lukitus on valmis. Soihdut harhauttavat ohjuksia ohjustyypin soihtusiedon mukaan ja katkaisevat vastustajan lukituksen.
+
+## Verkkoversio (online/)
+
+Kumpikin pelaaja pelaa omalla laitteellaan (tietokone tai puhelin) ja näkee oman koko ruudun näkymänsä.
+Toinen luo pelin ja saa nelikirjaimisen koodin ja QR-koodin, toinen liittyy koodilla tai skannaamalla.
+
+- `online/server.js` – Express + Socket.IO, pelihuoneet ja QR-koodit
+- `online/game.js` – palvelimen pelisimulaatio (osumat, ohjukset, törmäykset, voittaja, palkinto)
+- `online/public/` – selainasiakas ja yhteinen koodi (`shared.js`)
+- Alkuperäinen jaetun ruudun peli (`index.html`) on ennallaan ja löytyy palvelimelta osoitteesta `/jaettu`.
+
+Paikallisesti: `npm install && npm start`, sitten http://localhost:3000
+
+**Näppäimistö:** nuolet / WASD ohjaus, Q E sivukääntö, R / Shift kaasu, F / Z jarru,
+välilyönti laser, X / Enter ohjus, C / N soihdut, Esc kahdesti = poistu.
+**Puhelin:** vasen puikko ohjaa, vasemman reunan liukusäädin on kaasu, oikealla LASER, OHJUS ja SOIHTU.

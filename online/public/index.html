@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>Stellar Duel Online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#000; --fg:#959595; --yel:#b8c76f; --cyan:#70a4b2; --lgreen:#9ad284; --lblue:#6c5eb5; --lred:#9a6759; --grey:#6c6c6c; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden;
+    font-family:"Press Start 2P", "Courier New", monospace; -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none; touch-action:none; overscroll-behavior:none; }
+  #wrap { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+  canvas { display:block; image-rendering:pixelated; image-rendering:crisp-edges; }
+  #scan { position:fixed; pointer-events:none;
+    background:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.18) 3px); }
+  /* aula */
+  #lobby, #lobby * { touch-action:manipulation; -webkit-user-select:text; user-select:text; }
+  #lobby[hidden] { display:none; }
+  #lobby { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.55); }
+  #lobby .box { width:min(560px, 92vw); max-height:94vh; overflow:auto; text-align:center; padding:18px 16px;
+    border:3px solid var(--lblue); background:rgba(0,0,0,0.88); box-sizing:border-box; }
+  h1 { color:var(--yel); font-size:clamp(20px, 6vw, 34px); margin:4px 0 6px; letter-spacing:2px; font-weight:normal; }
+  .sub { color:var(--grey); font-size:10px; margin-bottom:18px; line-height:1.6; }
+  .pane[hidden] { display:none; }
+  button.big { display:block; width:100%; margin:10px 0; padding:16px 10px; font:inherit; font-size:14px; cursor:pointer;
+    background:#000; color:var(--yel); border:3px solid var(--yel); }
+  button.big:hover, button.big:focus-visible { background:var(--yel); color:#000; outline:none; }
+  button.big.alt { color:var(--cyan); border-color:var(--cyan); }
+  button.big.alt:hover, button.big.alt:focus-visible { background:var(--cyan); color:#000; }
+  button.small { font:inherit; font-size:10px; background:none; border:none; color:var(--grey); cursor:pointer; padding:10px; margin-top:6px; }
+  a.small { display:inline-block; font-size:9px; color:var(--grey); margin-top:14px; line-height:1.6; }
+  #code { font-size:40px; color:var(--lgreen); letter-spacing:10px; margin:8px 0 12px; }
+  #qr { width:200px; height:200px; image-rendering:pixelated; border:6px solid var(--yel); background:var(--yel); }
+  #joinUrl { font-size:9px; color:var(--grey); word-break:break-all; margin:10px 0; line-height:1.5; }
+  input#codeIn { font:inherit; font-size:32px; width:5.2em; text-align:center; letter-spacing:8px; text-transform:uppercase;
+    background:#000; color:var(--lgreen); border:3px solid var(--lgreen); padding:10px 4px; margin:12px 0; }
+  #status { min-height:1.4em; color:var(--lred); font-size:10px; margin-top:10px; line-height:1.5; }
+  .blink { animation:bl 1s steps(2) infinite; } @keyframes bl { 50% { opacity:0.35; } }
+  .help { font-size:9px; color:var(--grey); line-height:1.9; margin-top:14px; text-align:left; }
+  .help b { color:var(--cyan); font-weight:normal; }
+  /* kosketusohjaimet */
+  #touch { position:fixed; inset:0; pointer-events:none; }
+  #touch[hidden] { display:none; }
+  .tc { position:fixed; pointer-events:auto; touch-action:none; box-sizing:border-box; }
+  #stick { border-radius:50%; border:2px solid rgba(154,210,132,0.55); background:rgba(154,210,132,0.06); }
+  #knob { position:absolute; width:40%; height:40%; left:30%; top:30%; border-radius:50%; background:rgba(154,210,132,0.35); border:2px solid rgba(154,210,132,0.8); box-sizing:border-box; }
+  #thr { border:2px solid rgba(184,199,111,0.55); background:rgba(184,199,111,0.06); border-radius:8px; }
+  #thrFill { position:absolute; left:0; right:0; bottom:0; background:rgba(184,199,111,0.3); border-radius:0 0 6px 6px; }
+  #thrLbl { position:absolute; left:0; right:0; top:-16px; text-align:center; font-size:8px; color:var(--yel); }
+  .tbtn { border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-size:9px; background:rgba(0,0,0,0.25); }
+  .tbtn.on { background:rgba(255,255,255,0.25); }
+  #tLaser { border-color:rgba(154,103,89,0.9); color:#c98b7c; font-size:11px; }
+  #tMis { border-color:rgba(255,255,255,0.7); color:#fff; }
+  #tFlare { border-color:rgba(184,199,111,0.8); color:var(--yel); }
+  #tYawL, #tYawR { border-color:rgba(112,164,178,0.7); color:var(--cyan); font-size:12px; }
+  #rotate { position:fixed; inset:0; display:none; align-items:center; justify-content:center; text-align:center;
+    background:#000; color:var(--yel); font-size:14px; line-height:2; padding:20px; z-index:10; }
+  @media (orientation: portrait) and (pointer: coarse) { body.ingame #rotate { display:flex; } }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="640" height="360"></canvas></div>
+<div id="scan"></div>
+
+<div id="lobby">
+  <div class="box">
+    <h1>STELLAR DUEL</h1>
+    <div class="sub">VERKKOKAKSINTAISTELU · KUMPIKIN OMALLA LAITTEELLAAN</div>
+    <div class="pane" id="pMenu">
+      <button class="big" id="bCreate">LUO PELI (QR-KOODI)</button>
+      <button class="big alt" id="bJoin">LIITY PELIIN</button>
+      <a class="small" href="/jaettu">SAMALLA KONEELLA? JAETUN RUUDUN VERSIO</a>
+      <div class="help" id="helpKeys">
+        <b>NÄPPÄIMISTÖ</b><br>
+        NUOLET / WASD &nbsp;OHJAUS<br>
+        Q E &nbsp;SIVUKÄÄNTÖ<br>
+        R / SHIFT &nbsp;KAASU &nbsp;&nbsp; F / Z &nbsp;JARRU<br>
+        VÄLILYÖNTI &nbsp;LASER<br>
+        X / ENTER &nbsp;OHJUS &nbsp;&nbsp; C / N &nbsp;SOIHDUT
+      </div>
+    </div>
+    <div class="pane" id="pHost" hidden>
+      <div class="sub">PELIN KOODI</div>
+      <div id="code">----</div>
+      <img id="qr" alt="QR-koodi pelin liittymislinkkiin">
+      <div id="joinUrl"></div>
+      <div class="sub blink">ODOTETAAN VASTUSTAJAA...</div>
+      <button class="small" id="bBack1">&lt; TAKAISIN</button>
+    </div>
+    <div class="pane" id="pJoin" hidden>
+      <div class="sub">ANNA PELIN NELIKIRJAIMINEN KOODI</div>
+      <input id="codeIn" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text">
+      <button class="big" id="bJoinGo">LIITY</button>
+      <button class="small" id="bBack2">&lt; TAKAISIN</button>
+    </div>
+    <div id="status"></div>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div class="tc" id="stick"><div id="knob"></div></div>
+  <div class="tc" id="thr"><div id="thrFill"></div><div id="thrLbl">KAASU</div></div>
+  <div class="tc tbtn" id="tLaser">LASER</div>
+  <div class="tc tbtn" id="tMis">OHJUS</div>
+  <div class="tc tbtn" id="tFlare">SOIHTU</div>
+  <div class="tc tbtn" id="tYawL">&lt;</div>
+  <div class="tc tbtn" id="tYawR">&gt;</div>
+</div>
+<div id="rotate">KÄÄNNÄ PUHELIN<br>VAAKATASOON</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="shared.js"></script>
+<script src="client.js"></script>
+</body>
+</html>
