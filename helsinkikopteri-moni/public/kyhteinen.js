@@ -1,4 +1,4 @@
-// Helsinkikopteri moninpeli - palvelimen ja selaimen yhteinen koodi: kotikenttä, aloituspaikat, reitti, ase.
+// Helsinkihelikopterit - palvelimen ja selaimen yhteinen koodi: kotikenttä, aloituspaikat, reitti, ase.
 (function (root) {
 'use strict';
 const RD = (typeof module === 'object' && module.exports) ? require('../../helsinkiralli/public/shared.js') : root.RD;
@@ -52,7 +52,7 @@ function makeRoute(seed, n) {
   return rings;
 }
 // taisteluase: vain yksi, osuu vain läheltä
-const GUN = { range: 55, hitR: 2.3, dmg: 4, interval: 0.11, heatPer: 0.06, cool: 0.25, overheat: 1.0 };
+const GUN = { range: 150, hitR: 3.2, dmg: 4, interval: 0.11, heatPer: 0.06, cool: 0.25, overheat: 1.0 };
 const HP = 100, KILLS_TO_WIN = 5, FIGHT_TIME = 360, RACE_RINGS = 10;
 const PCOL = ['#4fd6ff', '#ffa040', '#ff5ad1'], PNAME = ['SININEN', 'ORANSSI', 'VIOLETTI'];
 const KY = { RD, surf, rngSeed, HOME, OPEN_YAW, PADS, makeRoute, maxRoofAround, GUN, HP, KILLS_TO_WIN, FIGHT_TIME, RACE_RINGS, PCOL, PNAME, W0 };

@@ -1,4 +1,4 @@
-// Helsinkikopteri moninpeli - HTTP- ja Socket.IO-palvelin. 1-3 pelaajaa omilla laitteillaan.
+// Helsinkihelikopterit - HTTP- ja Socket.IO-palvelin. 1-3 pelaajaa omilla laitteillaan.
 // Lento lasketaan pelaajan selaimessa; palvelin välittää tilat ja ratkaisee osumat, tuhot, portit ja voittajan.
 'use strict';
 const path = require('path');
@@ -239,4 +239,4 @@ io.on('connection', sock => {
 });
 
 const PORT = process.env.PORT || 3004;
-server.listen(PORT, () => console.log('Helsinkikopteri moninpeli portissa ' + PORT));
+server.listen(PORT, () => console.log('Helsinkihelikopterit portissa ' + PORT));

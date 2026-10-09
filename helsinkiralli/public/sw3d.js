@@ -6,7 +6,8 @@
 (function (root) {
 'use strict';
 const NEAR = 0.4, CELL = 48, NLEV = 8;
-function create(canvas, mesh, city, H) {
+function create(canvas, mesh, city, H, opts) {
+  opts = opts || {};
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   const dec = b64 => { const s = atob(b64), a = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) a[i] = s.charCodeAt(i); return a.buffer; };
@@ -29,7 +30,7 @@ function create(canvas, mesh, city, H) {
       if (y <= y0 + 0.2) continue;
       const pts = [];
       for (let e = 0; e < 3; e++) { const a = Q[e], b = Q[(e + 1) % 3]; if ((a[1] - y) * (b[1] - y) < 0) { const k = (y - a[1]) / (b[1] - a[1]); pts.push([a[0] + (b[0] - a[0]) * k, y, a[2] + (b[2] - a[2]) * k]); } }
-      if (pts.length === 2) SL.push(addV(...pts[0]), addV(...pts[1]), 3);
+      if (pts.length === 2 && opts.floors !== false) SL.push(addV(...pts[0]), addV(...pts[1]), 3);
     }
   }
   const g = city.ground, gcls = new Uint8Array(dec(mesh.gcls));

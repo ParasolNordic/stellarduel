@@ -1,4 +1,4 @@
-// Helsinkikopteri moninpeli - 1-3 pelaajaa omilla helikoptereillaan Kruununhaan yllä, kukin omalla laitteellaan.
+// Helsinkihelikopterit - 1-3 pelaajaa omilla helikoptereillaan Kruununhaan yllä, kukin omalla laitteellaan.
 // Pelitavat: vapaa lento, reittikilpailu ja taistelu (yksi lähietäisyyden tykki).
 // Lento lasketaan selaimessa (sama malli kuin yksinpelissä); palvelin ratkaisee osumat, tuhot, portit ja voittajan.
 (function () {
@@ -31,14 +31,14 @@ function useSoftware(reason) {
   if (G3 && G3.sw) return;
   rendErr = reason || '';
   glCv.style.display = 'none';
-  try { G3 = window.HKI_SW.create(skyCv, window.HKI_MESH, KD, H); } catch (e) { console.error(e); G3 = null; rendErr += ' / varapiirto: ' + e.message; }
+  try { G3 = window.HKI_SW.create(skyCv, window.HKI_MESH, KD, H, { floors: false }); } catch (e) { console.error(e); G3 = null; rendErr += ' / varapiirto: ' + e.message; }
   rendInfo = 'OHJELMALLINEN PIIRTO';
   if (SW) resize();
 }
 function initRenderer() {
   if (/[?&]piirto=sw\b/.test(location.search)) return useSoftware('');
   try {
-    G3 = window.HKI_GL.create(glCv, window.HKI_MESH, KD, H, why => useSoftware(why));
+    G3 = window.HKI_GL.create(glCv, window.HKI_MESH, KD, H, why => useSoftware(why), { floors: false });
     const i = G3.info(); rendInfo = 'WebGL · ' + (i.renderer || '?');
     if (SOFT_GL.test(i.renderer || '') && !/[?&]piirto=gl\b/.test(location.search)) { G3 = null; useSoftware('WebGL toimii vain ohjelmallisesti'); }
   } catch (e) { console.error(e); G3 = null; useSoftware(e.message || String(e)); }
@@ -349,7 +349,7 @@ function gunUpdate(dt, firing) {
   sock.emit('fire', { p: o.map(v => Math.round(v * 100) / 100), d: d.map(v => Math.round(v * 1000) / 1000) });
   beep(300 + Math.random() * 30, 0.03, 0.08);
 }
-const gunDir = () => norm(add(heli.F, scl(heli.U, -0.035)));
+const gunDir = () => heli.F.slice();
 // reittikilpailu: oman portin ohitus ja laskeutuminen kotikentälle
 let lastP = null;
 function updateRace() {
@@ -563,7 +563,7 @@ function drawTargetMarker(g) {
     txt(g, Math.round(ti.dist) + ' M', ax, ay + 24 * k, 11, col, 'center');
   }
 }
-// tähtäin: piste 40 m nokan edessä (osuma-alue loppuu 55 metriin)
+// tähtäin: renkaat 3/4 kantamasta ja kantaman päässä (150 m)
 function drawReticle(g) {
   if (!game || game.mode !== 'fight' || heli.state !== 'fly') return;
   const k = V.lwk, o = toW([0, 0.9, 3.7]);

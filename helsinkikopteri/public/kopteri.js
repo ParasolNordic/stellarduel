@@ -31,14 +31,14 @@ function useSoftware(reason) {
   if (G3 && G3.sw) return;
   rendErr = reason || '';
   glCv.style.display = 'none';
-  try { G3 = window.HKI_SW.create(skyCv, window.HKI_MESH, KD, H); } catch (e) { console.error(e); G3 = null; rendErr += ' / varapiirto: ' + e.message; }
+  try { G3 = window.HKI_SW.create(skyCv, window.HKI_MESH, KD, H, { floors: false }); } catch (e) { console.error(e); G3 = null; rendErr += ' / varapiirto: ' + e.message; }
   rendInfo = 'OHJELMALLINEN PIIRTO';
   if (SW) resize();
 }
 function initRenderer() {
   if (/[?&]piirto=sw\b/.test(location.search)) return useSoftware('');
   try {
-    G3 = window.HKI_GL.create(glCv, window.HKI_MESH, KD, H, why => useSoftware(why));
+    G3 = window.HKI_GL.create(glCv, window.HKI_MESH, KD, H, why => useSoftware(why), { floors: false });
     const i = G3.info(); rendInfo = 'WebGL · ' + (i.renderer || '?');
     if (SOFT_GL.test(i.renderer || '') && !/[?&]piirto=gl\b/.test(location.search)) { G3 = null; useSoftware('WebGL toimii vain ohjelmallisesti'); }
   } catch (e) { console.error(e); G3 = null; useSoftware(e.message || String(e)); }

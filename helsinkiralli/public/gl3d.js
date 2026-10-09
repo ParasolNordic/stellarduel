@@ -48,7 +48,8 @@ function getGL(canvas) {
   for (const [kind, attrs] of tries) { try { const gl = canvas.getContext(kind, attrs); if (gl) return gl; } catch (e) { /* seuraava */ } }
   return null;
 }
-function create(canvas, mesh, city, H, onLost) {
+function create(canvas, mesh, city, H, onLost, opts) {
+  opts = opts || {};
   const gl = getGL(canvas);
   if (!gl) throw Error('selain ei antanut WebGL-kontekstia');
   if (gl.isContextLost && gl.isContextLost()) throw Error('WebGL-konteksti menetetty heti alussa');
@@ -213,7 +214,7 @@ function create(canvas, mesh, city, H, onLost) {
     attrib(A.pos, bVB, 3);
     for (let k = 0; k < 3; k++) { constCol(COL.lines[k]); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, eIB[k].b); gl.drawElements(gl.LINES, eIB[k].n, gl.UNSIGNED_SHORT, 0); }
     attrib(A.pos, curbVB, 3); constCol([70, 76, 98]); gl.drawArrays(gl.LINES, 0, curbN);
-    attrib(A.pos, flVB, 3); constCol([22, 66, 98]); gl.drawArrays(gl.LINES, 0, flN);
+    if (opts.floors !== false) { attrib(A.pos, flVB, 3); constCol([22, 66, 98]); gl.drawArrays(gl.LINES, 0, flN); }
     if (dyn.lp.length) { attrib(A.pos, upload('lp', Float32Array, dyn.lp), 3); arrCol(upload('lc', Uint8Array, dyn.lc)); gl.drawArrays(gl.LINES, 0, dyn.lp.length / 3); }
     // läpikuultavat (lasit, öljy) ja partikkelit
     gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
