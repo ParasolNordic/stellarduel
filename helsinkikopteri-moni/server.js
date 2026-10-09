@@ -13,7 +13,7 @@ const { RD, GUN } = KY;
 const app = express();
 app.use(compression());
 app.get('/health', (req, res) => res.send('ok'));
-const SHARED = ['kaupunki.js', 'kaupunki-mesh.js', 'gl3d.js', 'sw3d.js', 'shared.js', 'ajoneuvot.js', 'lisenssit.js'];
+const SHARED = ['kaupunki.js', 'kaupunki-mesh.js', 'gl3d.js', 'sw3d.js', 'shared.js', 'ajoneuvot.js', 'lisenssit.js', 'kosketus.js'];
 for (const f of SHARED) app.get('/yhteiset/' + f, (req, res) => res.sendFile(path.join(__dirname, '..', 'helsinkiralli', 'public', f), { maxAge: '1h' }));
 app.use(express.static(path.join(__dirname, 'public')));
 const server = http.createServer(app);
