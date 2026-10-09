@@ -32,13 +32,13 @@ precision highp float;
 precision mediump float;
 #endif
 varying vec4 vC; varying vec2 vP;
-uniform float uMode; uniform vec3 uSR, uSU, uSF, uFogS; uniform vec4 uSV; uniform float uSH;
+uniform float uMode; uniform vec3 uSR, uSU, uSF, uFogS; uniform vec4 uSV; uniform float uSH; uniform vec3 uK0, uK1, uK2, uK3;
 void main(){
   if (uMode < 0.5) { gl_FragColor = vC; return; }
   float px = (vP.x * 0.5 + 0.5) * uSV.w, py = (0.5 - vP.y * 0.5) * uSH, F = uSV.z;
   vec3 d = uSF + uSR * ((px - uSV.x) / F) + uSU * ((uSV.y - py) / F);
   float t = d.y / max(length(d.xz), 1e-3) * F * 2.0 / uSH;
-  vec3 c0 = vec3(4.0, 4.0, 12.0), c1 = vec3(22.0, 12.0, 48.0), c2 = vec3(74.0, 28.0, 74.0), c3 = vec3(122.0, 58.0, 58.0);
+  vec3 c0 = uK0, c1 = uK1, c2 = uK2, c3 = uK3;
   vec3 c = t < 0.0 ? uFogS * 255.0 : (t < 0.128 ? mix(c3, c2, t / 0.128) : (t < 0.56 ? mix(c2, c1, (t - 0.128) / 0.432) : mix(c1, c0, clamp((t - 0.56) / 1.04, 0.0, 1.0))));
   gl_FragColor = vec4(c / 255.0, 1.0);
 }`;
@@ -169,7 +169,7 @@ function create(canvas, mesh, city, H, onLost, opts) {
   const COL = { fill: [8, 13, 22], lines: [[55, 201, 255], [255, 184, 77], [255, 97, 198]] };
   // taivas: liukuväri horisonttiin, sen alla sumun väri, tähdet pisteinä (piirretään ensin, syvyys taakse)
   const STARS = []; for (let i = 0; i < 120; i++) { const a = (i * 2.399) % (Math.PI * 2), el = 0.06 + ((i * 0.618) % 1) * 0.9; STARS.push([Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el)]); }
-  const SU = {}; for (const n of ['uMode', 'uSR', 'uSU', 'uSF', 'uFogS', 'uSV', 'uSH']) SU[n] = gl.getUniformLocation(skyProg, n);
+  const SU = {}; for (const n of ['uMode', 'uSR', 'uSU', 'uSF', 'uFogS', 'uSV', 'uSH', 'uK0', 'uK1', 'uK2', 'uK3']) SU[n] = gl.getUniformLocation(skyProg, n);
   function drawSky(V, fogColor) {
     const xy = [-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1], c = [];
     for (let i = 0; i < 6; i++) c.push(0, 0, 0, 255);
@@ -182,6 +182,8 @@ function create(canvas, mesh, city, H, onLost, opts) {
     gl.uniform3fv(SU.uSR, V.r); gl.uniform3fv(SU.uSU, V.u); gl.uniform3fv(SU.uSF, V.f);
     gl.uniform3f(SU.uFogS, fogColor[0] / 255, fogColor[1] / 255, fogColor[2] / 255);
     gl.uniform4f(SU.uSV, V.cx, V.cy, V.F, V.w); gl.uniform1f(SU.uSH, V.h);
+    const SK = opts.sky || [[4, 4, 12], [22, 12, 48], [74, 28, 74], [122, 58, 58]];   // zeniitti -> horisontti
+    gl.uniform3fv(SU.uK0, SK[0]); gl.uniform3fv(SU.uK1, SK[1]); gl.uniform3fv(SU.uK2, SK[2]); gl.uniform3fv(SU.uK3, SK[3]);
     gl.bindBuffer(gl.ARRAY_BUFFER, skyXY); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(xy), gl.DYNAMIC_DRAW); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(0);
     gl.bindBuffer(gl.ARRAY_BUFFER, skyC); gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(c), gl.DYNAMIC_DRAW); gl.vertexAttribPointer(1, 4, gl.UNSIGNED_BYTE, true, 0, 0); gl.enableVertexAttribArray(1);
     gl.disableVertexAttribArray(2);

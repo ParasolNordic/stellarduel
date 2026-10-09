@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai">
+<meta name="googlebot" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#05050c">
+<title>IT-harjoitus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#04050a; --fg:#c8d0e0; --dim:#6b7390; --c1:#4fd6ff; --c2:#ffa040; --ok:#9dff9d; --warn:#ffd060; --bad:#ff6060; --line:#2a2f48; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden; font-family:"Share Tech Mono", ui-monospace, monospace;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:none; overscroll-behavior:none; }
+  canvas#c, canvas#sky, canvas#gl { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
+  canvas#sky { z-index:0; } canvas#gl { z-index:1; pointer-events:none; } canvas#c { z-index:2; }
+  .scr, #touch, #placePanel { z-index:5; }
+  .scr { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(4,5,10,0.6); overflow:auto; touch-action:pan-y; }
+  .scr[hidden], #placePanel[hidden] { display:none; }
+  .box { width:min(600px, 94vw); max-height:96vh; overflow:auto; box-sizing:border-box; padding:16px; border:1px solid var(--line);
+    background:rgba(6,8,16,0.92); text-align:center; box-shadow:0 0 40px rgba(255,160,64,0.10); }
+  h1 { font-family:Orbitron, sans-serif; font-weight:800; letter-spacing:3px; margin:4px 0 2px; font-size:clamp(20px, 5.5vw, 34px);
+    background:linear-gradient(90deg, #ffd060, #ff8040, #4fd6ff); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:12px; line-height:1.5; }
+  .pane[hidden] { display:none; }
+  button { font:inherit; cursor:pointer; touch-action:manipulation; }
+  .big { display:block; width:100%; margin:8px 0; padding:13px; font-family:Orbitron, sans-serif; font-size:14px; letter-spacing:2px;
+    background:transparent; color:var(--c2); border:2px solid var(--c2); text-align:left; }
+  .big small { display:block; font-family:"Share Tech Mono", monospace; letter-spacing:0; font-size:11px; color:var(--dim); margin-top:3px; }
+  .big:hover, .big:focus-visible { background:rgba(255,160,64,0.12); outline:none; }
+  .big.alt { color:var(--c1); border-color:var(--c1); } .big.alt:hover { background:rgba(79,214,255,0.12); }
+  .big:disabled { opacity:0.35; cursor:default; }
+  .small { background:none; border:none; color:var(--dim); padding:10px; font-size:12px; }
+  #code { font-family:Orbitron, sans-serif; font-size:40px; letter-spacing:12px; color:var(--ok); margin:6px 0 10px; }
+  #qr { width:160px; height:160px; image-rendering:pixelated; background:#fff; padding:6px; }
+  #joinUrl { font-size:11px; color:var(--dim); word-break:break-all; margin:8px 0; }
+  #roster { display:flex; gap:8px; justify-content:center; margin:12px 0; flex-wrap:wrap; }
+  .slot { min-width:130px; padding:8px; border:1px dashed var(--line); color:var(--dim); font-size:12px; line-height:1.5; }
+  .slot.on { border-style:solid; color:var(--fg); }
+  .roles { display:flex; gap:8px; flex-wrap:wrap; }
+  .role { flex:1 1 160px; text-align:left; padding:10px; background:rgba(255,255,255,0.02); color:var(--fg); border:1px solid var(--line); }
+  .role b { display:block; font-family:Orbitron, sans-serif; font-weight:500; font-size:12px; letter-spacing:1px; color:var(--c2); margin-bottom:4px; }
+  .role span { font-size:11px; color:var(--dim); line-height:1.4; }
+  .role.on { border-color:var(--ok); box-shadow:0 0 0 1px var(--ok) inset; } .role.on b { color:var(--ok); }
+  input#codeIn { font-family:Orbitron, sans-serif; font-size:30px; width:5.4em; text-align:center; letter-spacing:8px; text-transform:uppercase;
+    background:#000; color:var(--ok); border:2px solid var(--ok); padding:8px; margin:10px 0; touch-action:manipulation; }
+  #status { min-height:1.3em; color:var(--bad); font-size:12px; margin-top:8px; }
+  #best { color:var(--ok); font-size:12px; min-height:1em; }
+  .help { text-align:left; font-size:11px; color:var(--dim); line-height:1.75; margin-top:10px; border-top:1px solid var(--line); padding-top:8px; }
+  .help b { color:var(--fg); font-weight:normal; }
+  #placePanel { position:fixed; right:12px; top:80px; width:min(330px, 30vw); padding:12px; box-sizing:border-box; border:1px solid var(--line); background:rgba(6,8,16,0.92); }
+  .wchip { display:block; width:100%; text-align:left; margin:0 0 8px; padding:9px; background:rgba(255,255,255,0.02); border:1px solid var(--line); color:var(--fg); }
+  .wchip b { display:block; font-family:Orbitron, sans-serif; font-weight:500; font-size:12px; letter-spacing:1px; }
+  .wchip span, .wchip i { font-size:10px; color:var(--dim); font-style:normal; display:block; margin-top:2px; }
+  .wchip.on { border-color:var(--ok); box-shadow:0 0 0 1px var(--ok) inset; }
+  #w0 b { color:#ffc460; } #w1 b { color:#ff7846; } #w2 b { color:#8ce6ff; }
+  @media (pointer: coarse), (max-width: 760px) {
+    #placePanel { left:8px; right:8px; top:auto; bottom:8px; width:auto; display:flex; flex-wrap:wrap; gap:6px; padding:8px; }
+    #placePanel[hidden] { display:none; }
+    .wchip { flex:1 1 30%; margin:0; padding:6px; } .wchip span { display:none; }
+    #placePanel .big { flex:1 1 40%; margin:0; padding:8px; font-size:12px; }
+  }
+  @media (max-height: 520px) { #qr { width:110px; height:110px; } #code { font-size:28px; margin:2px 0 4px; } .big { padding:9px; margin:6px 0; } .help { display:none; } }
+  #touch { position:fixed; inset:0; pointer-events:none; }
+  #touch[hidden], #tAA[hidden], #tPil[hidden] { display:none; }
+  .stick { position:absolute; bottom:4vh; width:32vmin; height:32vmin; border-radius:50%; border:2px solid rgba(255,160,64,0.35);
+    background:rgba(255,160,64,0.05); pointer-events:auto; touch-action:none; }
+  .stick .knob { position:absolute; left:32%; top:32%; width:36%; height:36%; border-radius:50%; background:rgba(255,160,64,0.3); border:2px solid rgba(255,160,64,0.7); }
+  .stick span { position:absolute; left:0; right:0; top:-18px; text-align:center; font-size:10px; color:var(--dim); }
+  #stL { left:3vw; } #stR { right:3vw; }
+  .tb { position:absolute; pointer-events:auto; background:rgba(6,8,16,0.6); color:var(--c2); border:1px solid rgba(255,160,64,0.55); padding:9px 11px; font-size:12px; letter-spacing:1px; }
+  #tFire { position:absolute; right:4vw; bottom:6vh; width:24vmin; height:24vmin; border-radius:50%; pointer-events:auto; touch-action:none;
+    border:2px solid rgba(255,224,102,0.85); color:#ffe066; background:rgba(0,0,0,0.3); font-family:Orbitron, sans-serif; font-size:13px; letter-spacing:1px; }
+  #tFire.on { background:rgba(255,224,102,0.3); }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<canvas id="gl"></canvas>
+<canvas id="c"></canvas>
+
+<div class="scr" id="menu">
+  <div class="box">
+    <h1>IT-HARJOITUS</h1>
+    <div class="sub">ILMATORJUNNAN AMMUNTAHARJOITUS · KRUUNUNHAKA YÖLLÄ · MAALILENNOKKILAIVUE</div>
+    <div class="pane" id="pMenu">
+      <button class="big" id="bSolo">YKSINPELI<small>Sijoita kolme it-patteria katoille ja pudota tietokoneen lennättämän laivueen maalilennokit kolmen ylilennon aikana.</small></button>
+      <button class="big alt" id="bCreate">KAKSINPELI · LUO PELI<small>Toinen komentaa ilmatorjuntaa, toinen lentää johtolennokkia kuuden muun rinnalla.</small></button>
+      <button class="big alt" id="bJoin">KAKSINPELI · LIITY</button>
+      <div id="best"></div>
+    </div>
+    <div class="pane" id="pHost" hidden>
+      <div class="sub">PELIN KOODI</div>
+      <div id="code">----</div>
+      <img id="qr" alt="QR-koodi pelin liittymislinkkiin">
+      <div id="joinUrl"></div>
+    </div>
+    <div class="pane" id="pJoin" hidden>
+      <div class="sub">ANNA PELIN NELIKIRJAIMINEN KOODI</div>
+      <input id="codeIn" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="big alt" id="bJoinGo">LIITY</button>
+    </div>
+    <div class="pane" id="pRoom" hidden>
+      <div id="roster"></div>
+      <div class="sub" style="margin:4px 0">PELIN LUOJAN ROOLI</div>
+      <div class="roles">
+        <button class="role" id="r_aa"><b>ILMATORJUNTA</b><span>Sijoittaa kolme patteria ja voittaa ampumalla johtolennokin alas.</span></button>
+        <button class="role" id="r_pilot"><b>LENNOKKILAIVUE</b><span>Lentää johtolennokkia ja voittaa tekemällä kolme ylilentoa alueen keskustan yli.</span></button>
+      </div>
+      <div class="sub" id="roomInfo"></div>
+      <button class="big" id="bBegin">ALOITA</button>
+    </div>
+    <div class="help" id="helpKeys">
+      <b>ILMATORJUNTA</b> · HIIRI tähtää (napsauta ruutua) · VASEN PAINIKE / VÄLILYÖNTI ampuu · 1 2 3 vaihtaa patteria · RULLA / Z zoomaa ·
+      L ennakkomerkit · T muiden patterien miehistöt · R lataa · NUOLET tähtäävät myös<br>
+      <b>LENNOKKI</b> · NUOLET / WASD ohjaus · SHIFT / CTRL kaasu · V kamera<br>
+      9 äänet · P tauko (yksinpeli) · ESC valikko
+    </div>
+    <div class="help" id="helpTouch" hidden>
+      <b>KOSKETUS</b> · Ilmatorjunta: vedä ruutua tähdätäksesi, AMMU-nappi oikealla, 1–3 vaihtaa patteria. Lennokki: vasen tikku ohjaus, oikea tikku kaasu.
+    </div>
+    <button class="small" id="bBack" hidden>&lt; TAKAISIN</button>
+    <div id="status"></div>
+  </div>
+</div>
+
+<div id="placePanel" hidden>
+  <button class="wchip" id="w0"><b>1 · 12,7 ITKK 96</b><span>Raskas konekivääri · nopea kääntö, pieni teho</span><i></i></button>
+  <button class="wchip" id="w1"><b>2 · 23 ITK 61</b><span>Kaksiputkinen · suuri tulinopeus</span><i></i></button>
+  <button class="wchip" id="w2"><b>3 · 35 ITK 88</b><span>Kaksiputkinen Oerlikon · kantava, lähestymissytytin</span><i></i></button>
+  <button class="big alt" id="bPlaceRnd">ARVO PAIKAT</button>
+  <button class="big" id="bPlaceGo" disabled>VALMIS · ODOTA HÄLYTYSTÄ</button>
+  <button class="small" id="bPlaceBack">&lt; VALIKKO</button>
+</div>
+
+<div id="touch" hidden>
+  <div id="tAA" hidden>
+    <button id="tFire">AMMU</button>
+    <button class="tb" id="tB1" style="left:calc(8px + env(safe-area-inset-left)); bottom:10px">1</button>
+    <button class="tb" id="tB2" style="left:calc(52px + env(safe-area-inset-left)); bottom:10px">2</button>
+    <button class="tb" id="tB3" style="left:calc(96px + env(safe-area-inset-left)); bottom:10px">3</button>
+    <button class="tb" id="tZoom" style="left:calc(140px + env(safe-area-inset-left)); bottom:10px">ZOOM</button>
+    <button class="tb" id="tLead" style="left:calc(206px + env(safe-area-inset-left)); bottom:10px">ENNAKKO</button>
+  </div>
+  <div id="tPil" hidden>
+    <div class="stick" id="stL"><span>OHJAUS</span><div class="knob"></div></div>
+    <div class="stick" id="stR"><span>KAASU</span><div class="knob"></div></div>
+    <button class="tb" id="tView" style="left:calc(8px + env(safe-area-inset-left)); top:calc(8px + env(safe-area-inset-top))">KAMERA</button>
+  </div>
+  <button class="tb" id="tExit" style="right:calc(8px + env(safe-area-inset-right)); top:calc(8px + env(safe-area-inset-top) + 34vmin)">POISTU</button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/yhteiset/ajoneuvot.js"></script>
+<script src="/yhteiset/kaupunki.js"></script>
+<script src="/yhteiset/kaupunki-mesh.js"></script>
+<script src="/yhteiset/gl3d.js"></script>
+<script src="/yhteiset/sw3d.js"></script>
+<script src="/yhteiset/shared.js"></script>
+<script src="ityhteinen.js"></script>
+<script src="it.js"></script>
+</body>
+</html>

@@ -9,7 +9,8 @@
     "start:ralli": "node ralli/server.js",
     "start:helsinki": "node helsinkiralli/server.js",
     "start:kopteri": "node helsinkikopteri/server.js",
-    "start:kopterimoni": "node helsinkikopteri-moni/server.js"
+    "start:kopterimoni": "node helsinkikopteri-moni/server.js",
+    "start:it": "node itharjoitus/server.js"
   },
   "engines": {
     "node": ">=18"

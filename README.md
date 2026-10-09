@@ -91,3 +91,16 @@ Lento, näkymät (ulkoa / ohjaamosta), vakain ja mittaristo ovat samat kuin yksi
 - Palvelin (`server.js`) välittää tilat 20 Hz ja ratkaisee osumat, tuhot, portit ja voittajan; yhteinen koodi `public/kyhteinen.js`.
 
 Käynnistys: `npm run start:kopterimoni` (oletusportti 3004).
+
+## IT-harjoitus (itharjoitus/)
+
+Ilmatorjunnan ammuntaharjoitus Kruununhaassa yöllä, samassa ympäristössä kuin helikopteripelit. Hakukoneet ja indeksoijat
+estetään (`robots.txt` kieltää kaiken, `X-Robots-Tag`-otsake ja `meta robots` -tagi).
+
+- **Yksinpeli:** sijoita kolme it-patteria tasakatoille (12,7 ITKK 96, 23 ITK 61, 35 ITK 88), vaihda näkymää patterien välillä (1–3)
+  ja ammu 360 astetta. Tietokone lennättää 6–8 maalilennokin laivuetta, joka tekee kolme ylilentoa ja poistuu.
+  Ammuksilla on lentoaika ja pudotus; ennakkomerkit (L) ja muiden patterien miehistöt (T) voi kytkeä pois. Vähintään puolet alas = onnistunut harjoitus.
+- **Kaksinpeli:** toinen komentaa ilmatorjuntaa, toinen lentää johtolennokkia kuuden muun rinnalla. Ilmatorjunta voittaa ampumalla
+  johtolennokin alas, laivue voittaa tekemällä kolme ylilentoa harjoitusalueen keskustan yli.
+
+Käynnistys: `npm run start:it` (oletusportti 3005).
