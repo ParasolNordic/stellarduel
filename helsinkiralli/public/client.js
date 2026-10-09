@@ -14,7 +14,7 @@ const skyCv = $('sky'), skyCtx = skyCv.getContext('2d'), glCv = $('gl');
 let DPR = 1, SW = 0, SH = 0, G3 = null, glScale = 1, perfT = 0, perfN = 0, perfAcc = 0;
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, isTouch ? 2 : 2);
-  const maxW = isTouch ? 1500 : 2200;
+  const maxW = G3 && G3.sw ? 1280 : (isTouch ? 1500 : 2200);              // varapiirrossa pienempi kangas (CPU piirtää)
   if (window.innerWidth * DPR > maxW) DPR = maxW / window.innerWidth;
   SW = Math.round(window.innerWidth * DPR); SH = Math.round(window.innerHeight * DPR);
   cv.width = SW; cv.height = SH; skyCv.width = SW; skyCv.height = SH; glCv.width = Math.round(SW * glScale); glCv.height = Math.round(SH * glScale);
@@ -1038,13 +1038,17 @@ function useSoftware(reason) {
   glCv.style.display = 'none';
   try { G3 = window.HKI_SW.create(skyCv, window.HKI_MESH, RD.KD, H); } catch (e) { console.error(e); G3 = null; rendErr += ' / varapiirto: ' + e.message; }
   rendInfo = 'OHJELMALLINEN PIIRTO';
+  if (SW) resize();
 }
+const SOFT_GL = /swiftshader|llvmpipe|softpipe|software|basic render|microsoft basic/i;
 function initRenderer(forceSW) {
   if (!forceSW) {
     try {
       G3 = window.HKI_GL.create(glCv, window.HKI_MESH, RD.KD, H, why => useSoftware(why));
       const i = G3.info(); rendInfo = 'WebGL · ' + (i.renderer || '?') + ' · syvyys ' + i.depthBits + ' bit';
       glCv.style.display = '';
+      // ohjelmallinen WebGL (ei näytönohjainta) on hitaampi kuin oma varapiirto
+      if (SOFT_GL.test(i.renderer || '') && !/[?&]piirto=gl\b/.test(location.search)) { G3 = null; useSoftware('WebGL toimii vain ohjelmallisesti (' + i.renderer.slice(0, 60) + ')'); }
     } catch (e) { console.error(e); G3 = null; useSoftware(e.message || String(e)); }
   } else useSoftware('');
 }
@@ -1054,12 +1058,13 @@ function render3D(camPos, look, fog) {
   if (!G3 || G3.sw) drawSky(skyCtx, SW, SH);
   if (!G3) return;
   buildScene();
-  try { G3.render(V, fog, FOGC); }
+  try { G3.render(V, G3.sw ? [fog[0] * 0.6, fog[1] * 0.64] : fog, FOGC); }
   catch (e) { console.error(e); if (!G3.sw) useSoftware(e.message || String(e)); else throw e; }
 }
 function drawDebug(ctx) {
   if (!DEBUG && !rendErr) return;
-  const lines = [rendInfo + (G3 && G3.sw ? ' · puskuri ' + G3.info().buf + ' · ' + G3.info().ms + ' ms' : '')];
+  const si = G3 && G3.sw ? G3.info() : null;
+  const lines = [rendInfo + (si ? ' · puskuri ' + si.buf + ' · ' + si.ms + ' ms' + (DEBUG ? ' · ' + si.prof : '') : '')];
   if (rendErr) lines.push('WebGL ei käytössä: ' + rendErr.slice(0, 140));
   if (DEBUG) lines.push('kangas ' + SW + 'x' + SH + ' · gl ' + glCv.width + 'x' + glCv.height + ' · dpr ' + (window.devicePixelRatio || 1).toFixed(2) + ' · ' + navigator.userAgent.slice(0, 110));
   const k = V.lwk, y0 = SH - (lines.length * 13 + 30) * k;
@@ -1107,5 +1112,5 @@ window.addEventListener('resize', () => setTimeout(resize, 60));
 setupTouch(); resize();
 initRenderer(/[?&]piirto=sw\b/.test(location.search)); showPane('pMenu'); connect();
 requestAnimationFrame(frame);
-window.__RD_DEBUG = { get mode() { return mode; }, get me() { return me; }, get cars() { return cars; }, get latest() { return latest; }, get myIdx() { return myIdx; }, keys, touch, get items() { return itemsA.length + itemsB.length; } };
+window.__RD_DEBUG = { get mode() { return mode; }, get me() { return me; }, get cars() { return cars; }, get latest() { return latest; }, get myIdx() { return myIdx; }, keys, touch, g3info: () => G3 && G3.info ? G3.info() : null, get SW() { return SW; }, get items() { return itemsA.length + itemsB.length; } };
 })();
