@@ -8,7 +8,16 @@ Selaimessa toimiva Three.js-pohjainen, päivänvalossa teksturoitu Helsinki 3D -
 - Käytä `public/world/world-manifest.json` tiedostojen ja alkuperäkoordinaattien hakemiseen.
 - Valmiit pelimallit: `public/world/buildings.glb` ja `public/world/terrain.glb`. Molemmat sisältävät tekstuurinsa; erillisiä PNG-kansioita ei tarvitse siirtää pelin public-hakemistoon.
 - Muunnosskripti: `scripts/build_world.py`. Alkuperäinen ZIP säilytetään erillään pelin julkaistavista tiedostoista.
-- Three.js-renderöinti ja kamerat: `src/main.js`. Älä vaihda koordinaatistoa tietämättäsi.
+- Three.js-sovellus on jaettu moduuleihin (alla). Älä vaihda koordinaatistoa tietämättäsi.
+
+## Arkkitehtuuri (v0.2)
+- `src/world/CityWorld.js` – kaupunkimaailma: GLB-lataus, materiaalit, varjoliput, tekstuurien laatutasot, korkeusruudukko (`heightAt`, `surfaceAt`, `isBuilding`) peleille.
+- `src/lighting/Lighting.js` – fysikaalinen taivas tai kevyt taivas, aurinko Helsingin todellisessa kohdassa (`setTime(h, päivä)`), varjot, IBL, sumu.
+- `src/camera/CameraRig.js` – kartta-, lento- ja kävelykamera, `setPose()` ohjelmalliseen kameran asetukseen.
+- `src/game/GameManager.js` – pelimekaniikan kerros. Pelit rekisteröidään pelitiloina (`{ id, enter, exit, update }`) ja ne saavat kontekstin `{ scene, camera, world, lighting, rig }`. Nyt vain `explore`.
+- `src/core/quality.js` (Low/Medium/High), `core/renderer.js`, `core/Perf.js` (FPS-mittari ja mittausajo).
+- `src/main.js` vain kokoaa moduulit ja käyttöliittymän. `src/legacy/main-v01.js` + `viewer-v01.html` = alkuperäinen toimiva versio, älä muokkaa.
+- Suorituskyky: `docs/PERFORMANCE.md`. Mittaa (`?bench=all`) ennen optimointeja.
 
 ## Koordinaatit
 Lähde EPSG:3879, yksikkö metri. Pelin x = easting − origin_easting, y = alkuperäinen korkeus, z = −(northing − origin_northing). Origo luetaan manifestista. Rakennukset ja maasto on jo kohdistettu **samaan** lokaaliin origoonsa; älä siirrä niitä erikseen.
@@ -16,12 +25,12 @@ Lähde EPSG:3879, yksikkö metri. Pelin x = easting − origin_easting, y = alku
 ## Rajoitukset
 - Nykyinen vienti kattaa ~383 × 364 metriä, EI koko Kruununhakaa tai Katajanokkaa.
 - Ortoilmakuva on tekstuuri, ei katuverkon navigointi- tai törmäysgeometriaa.
-- Kävelykameran korkeus seuraa maastoa raycastilla; rakennusten törmäyksiä ei ole toteutettu.
+- Kävelykameran korkeus seuraa maaston korkeusruudukkoa; rakennusten törmäyksiä ei ole toteutettu (ruudukossa on valmiina kattokorkeudet).
 - Rakennuksissa on vielä osin harmaita teksturoimattomia pintoja alkuperäisen OBJ-viennin mukaisesti.
 - Three.js-katselimen kamerat ja UI tarvitsevat selaintestauksen käyttäjän ympäristössä.
 
 ## Käynnistys
-`npm install && npm run dev` (Three.js ja Vite); vaihtoehtoisesti `python3 -m http.server 8000` ja avaa `http://localhost:8000/viewer-cdn.html` (vaatii Internetin CDN-kirjastoihin).
+`npm install && npm run dev` (Three.js ja Vite); tuotanto `npm run build && npm start` (Express, dist/); vaihtoehtoisesti `python3 -m http.server 8000` ja avaa `http://localhost:8000/viewer-cdn.html` (vaatii Internetin CDN-kirjastoihin).
 
 ## Jatkotehtävät prioriteettijärjestyksessä
 1. Käynnistä katselin; tarkista katon/julkisivujen UV:t ja suuntaus katutasolta sekä yläviistosta.

@@ -1,5 +1,15 @@
 # Helsinki 3D – teksturoitu Three.js -prototyyppi
 
+## Versio 0.2 – uudelleenkäytettävä pelimaailma
+
+- **Valaistus:** fysikaalinen taivas ja aurinko Helsingin todellisessa kohdassa valitulla kellonajalla ja päivällä, taivaasta laskettu ympäristövalo, rakennusten varjot ja ilmaperspektiivi. Neutral-sävykartoitus säilyttää julkisivujen ja ortokuvan värit.
+- **Grafiikka-asetukset Low / Medium / High:** taivas, varjot, tekstuurien tarkkuus, anisotrooppinen suodatus ja piirtotarkkuus. Valinta tallentuu selaimeen.
+- **Suorituskykymittari:** F-näppäin näyttää FPS:n, ruutuajat ja piirtokutsut. *Mittaa kaikki tasot* ajaa vakioidun mittauksen (ks. `docs/PERFORMANCE.md`).
+- **Moduulit:** maailma, kamera, valaistus ja pelimekaniikka ovat erillisinä moduuleina (ks. `CLAUDE.md`).
+- GLB-mallit, tekstuurit, mittakaava ja koordinaatisto ovat ennallaan. Alkuperäinen katselin löytyy osoitteesta `viewer-v01.html`.
+
+Tuotantokäyttö: `npm install && npm run build && npm start` (palvelin tarjoaa `dist/`-kansion, portti `PORT` tai 3010).
+
 Pelattavan maailmapohjan ensimmäinen versio: oikean Helsingin LoD2-rakennuksia, niihin kohdistettuja tekstuureja, teksturoitu maastopinta vuoden 2025 ortoilmakuva-aineistosta ja päiväsimulaation valaistus. Vapaata katselua, FPV-lentoa ja maanpinnan korkeutta seuraavaa kävelyä. **Ei vielä auto- tai shooter-peli**, eikä rakennuksille tarkkaa törmäystarkistusta.
 
 ## Helpoin tapa käynnistää (Mac / PC)

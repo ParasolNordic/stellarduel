@@ -1,19 +1,30 @@
 <!doctype html>
 <html lang="fi"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Helsinki 3D | FPV World Prototype</title>
+<title>Helsinki 3D | Pelimaailma</title>
 <link rel="stylesheet" href="./src/style.css">
 </head><body>
 <div id="viewport"></div>
 <div class="topbar"><div class="brand"><span class="mark">H</span><span>HELSINKI<span class="thin"> 3D</span></span></div><span class="tag">CITY MODELS · REAL-WORLD DATA</span><button class="outline" id="compact">Piilota / näytä valikko</button></div>
-<aside id="sidebar"><div class="panel-head"><div class="eyebrow">PROTOTYYPPI 01</div><h1>Oikea Helsinki.<br><span>Vapaa näkymä.</span></h1><p>Teksturoidut LoD2-rakennukset ja vuoden 2025 ortoilmakuva maastossa. Kokeile lentää tai kävellä alueella.</p></div>
+<aside id="sidebar"><div class="panel-head"><div class="eyebrow">PROTOTYYPPI 02 · PELIMAAILMA</div><h1>Oikea Helsinki.<br><span>Vapaa näkymä.</span></h1><p>Teksturoidut LoD2-rakennukset ja vuoden 2025 ortoilmakuva maastossa. Fysikaalinen taivas, aurinko oikeassa kohdassa ja rakennusten varjot.</p></div>
 <div class="section"><h2>Kamera</h2><div class="mode-grid"><button data-mode="orbit" class="active">Karttanäkymä</button><button data-mode="fly">FPV-lento</button><button data-mode="walk">Kävely</button></div><div class="hint" id="help">Hiiri: pyöritä · rulla: zoomaa · oikea: siirrä näkymää</div><button id="reset" class="wide secondary">↻ Palauta alkunäkymä</button></div>
+<div class="section"><h2>Grafiikka</h2><div class="mode-grid"><button data-q="low">Low</button><button data-q="medium">Medium</button><button data-q="high">High</button></div><div class="hint">Low: kevyt taivas, ei varjoja, rakennukset 2048² / maasto 1024². Medium: fysikaalinen taivas, varjot 2048, rakennukset 4096² / maasto 2048². High: pehmeät varjot 4096, kaikki 4096². F näyttää / piilottaa suorituskykymittarin.</div></div>
+<div class="section"><h2>Päivänvalo</h2><div class="range-row"><input type="range" id="time" min="4" max="22" step="0.25" value="13.5"><output id="timeValue">13:30</output></div>
+<label class="toggle"><span>Päivä</span><select id="day"><option value="80">21.3. kevätpäiväntasaus</option><option value="172">21.6. juhannus</option><option value="258" selected>15.9. syksy</option><option value="355">21.12. talvipäivänseisaus</option></select></label></div>
 <div class="section"><h2>Maailman kerrokset</h2><label class="toggle"><input type="checkbox" checked id="toggle-buildings"><span>LoD2-rakennukset</span></label><label class="toggle"><input type="checkbox" checked id="toggle-terrain"><span>Maasto ja ortoilmakuva</span></label></div>
 <div class="section"><h2>Lentonopeus</h2><div class="range-row"><input type="range" id="speed" min="5" max="145" value="45"><output id="speedValue">45 m/s</output></div></div>
+<div class="section"><h2>Suorituskyky</h2><div class="mode-grid two"><button id="benchBtn">Mittaa tämä taso</button><button id="benchAll">Mittaa kaikki tasot</button></div><div class="hint" id="benchOut">Mittaus ajaa kolme vakionäkymää (kartta, yläviisto, katutaso) 4 s kukin.</div></div>
 <div class="section stats"><h2>Aineisto</h2><div id="stats">Ladataan…</div><div class="meta">EPSG:3879 · metreinä · paikallinen origo</div><div class="meta">51 rakennuskohdetta CityGML-lähteessä</div></div>
-<div class="fineprint">Prototyyppi: ei vielä rakennustörmäyksiä, kattavia katuverkkoja eikä auto-/FPS-pelimekaniikkaa.<br><br>3D-aineisto: Helsingin kaupunki. Tarkista alkuperäisen aineiston lisenssi ennen julkaisua.</div></aside>
+<div class="fineprint">Prototyyppi: ei vielä rakennustörmäyksiä, katuverkkoa, ajoneuvoja eikä pelisääntöjä.<br><button class="linkbtn" id="licLink">© Aineistolähteet ja lisenssit</button><br><a href="viewer-v01.html" class="linkbtn">Alkuperäinen versio 0.1</a></div></aside>
 <div id="crosshair">+</div>
+<div id="perf" class="perf">– FPS</div>
 <div class="hud"><span id="fps">– FPS</span><span id="altitude">Korkeus – m</span><span id="status">Ladataan…</span></div>
 <div id="loading"><div class="spinner"></div><strong>Helsinki 3D</strong><p id="loadingText">Ladataan teksturoidut rakennukset ja maasto…</p></div>
+<div id="lic" class="lic hidden"><div class="lic-win"><h2>Aineistot ja tekijänoikeudet</h2>
+<p>Pelin Helsingin 3D-kaupunkiympäristö perustuu Helsingin kaupungin avoimeen 3D-kaupunkimalliaineistoon.</p>
+<p>Aineiston tuottaja: Helsingin kaupunki<br>Aineisto: Helsingin 3D-kaupunkitietomalli (LoD2) ja ortoilmakuva 2025<br>Lisenssi: Creative Commons Nimeä 4.0 Kansainvälinen (CC BY 4.0)<br>
+Lisenssin ehdot: <a href="https://creativecommons.org/licenses/by/4.0/deed.fi" target="_blank" rel="noopener">creativecommons.org/licenses/by/4.0/deed.fi</a><br>Aineiston lähde: <a href="https://kartta.hel.fi/3d/" target="_blank" rel="noopener">kartta.hel.fi/3d</a></p>
+<p>Alkuperäistä 3D-aineistoa on muokattu ja muunnettu pelikäyttöön soveltuvaksi (tekstuuriatlakset, paikallinen koordinaatisto).</p>
+<p>Peli on itsenäinen tuotanto, eikä Helsingin kaupunki ole sen kehittäjä, julkaisija tai sponsori.</p><button id="licClose" class="wide secondary">Sulje</button></div></div>
 <script type="module" src="./src/main.js"></script>
 </body></html>
