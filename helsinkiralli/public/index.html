@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#05050c">
+<title>Helsinkiralli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#05050c; --fg:#c8d0e0; --dim:#6b7390; --c1:#4fd6ff; --c2:#ffa040; --c3:#ff5ad1; --ok:#9dff9d; --warn:#ffd060; --bad:#ff6060; --line:#2a2f48; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden; font-family:"Share Tech Mono", ui-monospace, monospace;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:none; overscroll-behavior:none; }
+  canvas#c { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
+  .scr { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,5,12,0.72); overflow:auto; touch-action:pan-y; }
+  .scr[hidden] { display:none; }
+  .box { width:min(560px, 94vw); max-height:96vh; overflow:auto; box-sizing:border-box; padding:16px; border:1px solid var(--line);
+    background:rgba(8,9,20,0.92); text-align:center; box-shadow:0 0 40px rgba(79,214,255,0.12); }
+  h1 { font-family:Orbitron, sans-serif; font-weight:800; letter-spacing:4px; margin:4px 0 2px; font-size:clamp(26px, 7vw, 40px);
+    background:linear-gradient(90deg, var(--c1), var(--c3), var(--c2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  h2 { font-family:Orbitron, sans-serif; font-weight:500; font-size:13px; letter-spacing:3px; color:var(--dim); margin:14px 0 8px; }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:14px; line-height:1.5; }
+  .pane[hidden] { display:none; }
+  button { font:inherit; cursor:pointer; touch-action:manipulation; }
+  .big { display:block; width:100%; margin:9px 0; padding:14px; font-family:Orbitron, sans-serif; font-size:15px; letter-spacing:2px;
+    background:transparent; color:var(--c1); border:2px solid var(--c1); }
+  .big:hover, .big:focus-visible { background:var(--c1); color:#000; outline:none; }
+  .big.alt { color:var(--c2); border-color:var(--c2); } .big.alt:hover { background:var(--c2); color:#000; }
+  .big:disabled { opacity:0.35; cursor:default; background:transparent; color:var(--dim); border-color:var(--dim); }
+  .small { background:none; border:none; color:var(--dim); padding:10px; font-size:12px; }
+  #code { font-family:Orbitron, sans-serif; font-size:42px; letter-spacing:12px; color:var(--ok); margin:6px 0 10px; }
+  #qr { width:180px; height:180px; image-rendering:pixelated; background:#fff; padding:6px; }
+  #joinUrl { font-size:11px; color:var(--dim); word-break:break-all; margin:8px 0; }
+  #roster { display:flex; gap:8px; justify-content:center; margin:12px 0; flex-wrap:wrap; }
+  .slot { min-width:110px; padding:8px; border:1px dashed var(--line); color:var(--dim); font-size:12px; }
+  .slot.on { border-style:solid; }
+  input#codeIn { font-family:Orbitron, sans-serif; font-size:30px; width:5.4em; text-align:center; letter-spacing:8px; text-transform:uppercase;
+    background:#000; color:var(--ok); border:2px solid var(--ok); padding:8px; margin:10px 0; touch-action:manipulation; }
+  #status { min-height:1.3em; color:var(--bad); font-size:12px; margin-top:8px; }
+  .help { text-align:left; font-size:11px; color:var(--dim); line-height:1.8; margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+  .help b { color:var(--fg); font-weight:normal; }
+  /* valinta */
+  #selBox { width:min(980px, 97vw); text-align:left; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; }
+  .card { flex:1 1 140px; padding:9px; border:1px solid var(--line); background:rgba(255,255,255,0.02); color:var(--fg); text-align:left; }
+  .card.on { border-color:var(--pc, var(--c1)); box-shadow:0 0 0 1px var(--pc, var(--c1)) inset, 0 0 18px rgba(79,214,255,0.15); }
+  .card .nm { font-family:Orbitron, sans-serif; font-size:13px; letter-spacing:1px; color:var(--pc, var(--c1)); }
+  .card .ds { font-size:11px; color:var(--dim); margin:3px 0 5px; }
+  .st { display:grid; grid-template-columns:70px 1fr; gap:2px 6px; font-size:10px; color:var(--dim); align-items:center; }
+  .st i { display:block; height:4px; background:var(--pc, var(--c1)); opacity:0.8; }
+  #selTop { display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; }
+  #prev { flex:1 1 300px; min-height:150px; max-height:230px; width:100%; background:#070812; border:1px solid var(--line); }
+  #others { font-size:12px; color:var(--dim); margin:10px 0 4px; }
+  #bReady { margin-top:10px; }
+  /* HUD-kosketusohjaimet */
+  #touch { position:fixed; inset:0; pointer-events:none; }
+  #touch[hidden] { display:none; }
+  .tc { position:fixed; pointer-events:auto; touch-action:none; box-sizing:border-box; }
+  #stick { border-radius:50%; border:2px solid rgba(157,255,157,0.45); background:rgba(157,255,157,0.05); }
+  #knob { position:absolute; width:42%; height:42%; left:29%; top:29%; border-radius:50%; background:rgba(157,255,157,0.25); border:2px solid rgba(157,255,157,0.75); box-sizing:border-box; }
+  .lbl { position:absolute; left:0; right:0; text-align:center; font-size:10px; color:rgba(157,255,157,0.6); }
+  .tb { border-radius:50%; border:2px solid; display:flex; align-items:center; justify-content:center; font-family:Orbitron, sans-serif; font-size:11px; letter-spacing:1px; background:rgba(0,0,0,0.25); }
+  .tb.on { background:rgba(255,255,255,0.22); }
+  #tFire { border-color:rgba(255,224,102,0.85); color:#ffe066; font-size:13px; }
+  #tSpec { border-color:rgba(255,90,209,0.85); color:#ff8ae0; }
+  #tHand { border-color:rgba(79,214,255,0.7); color:#8fe6ff; font-size:9px; }
+  #rotate { position:fixed; inset:0; display:none; align-items:center; justify-content:center; text-align:center; background:#05050c; color:var(--warn);
+    font-family:Orbitron, sans-serif; font-size:16px; line-height:2; z-index:20; padding:20px; }
+  @media (orientation: portrait) and (pointer: coarse) { body.ingame #rotate { display:flex; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="scr" id="lobby">
+  <div class="box">
+    <h1>HELSINKIRALLI</h1>
+    <div class="sub">KRUUNUNHAKA · 2–3 PELAAJAA · KUKIN OMALLA LAITTEELLAAN</div>
+    <div class="pane" id="pMenu">
+      <button class="big" id="bCreate">LUO PELI (QR-KOODI)</button>
+      <button class="big alt" id="bJoin">LIITY PELIIN</button>
+      <div class="help" id="helpKeys">
+        <b>NÄPPÄIMISTÖ</b><br>
+        W / ↑ kaasu · S / ↓ jarru ja peruutus · A D / ← → ohjaus<br>
+        VÄLILYÖNTI ammu · X / ENTER erikoisase · SHIFT / C käsijarru<br>
+        V kamera · M kartan zoomaus · ESC kahdesti = poistu
+      </div>
+    </div>
+    <div class="pane" id="pHost" hidden>
+      <div class="sub">PELIN KOODI</div>
+      <div id="code">----</div>
+      <img id="qr" alt="QR-koodi pelin liittymislinkkiin">
+      <div id="joinUrl"></div>
+    </div>
+    <div class="pane" id="pJoin" hidden>
+      <div class="sub">ANNA PELIN NELIKIRJAIMINEN KOODI</div>
+      <input id="codeIn" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="big" id="bJoinGo">LIITY</button>
+    </div>
+    <div class="pane" id="pRoom" hidden>
+      <div id="roster"></div>
+      <div class="sub" id="roomInfo"></div>
+      <button class="big" id="bBegin" disabled>ALOITA PELI</button>
+    </div>
+    <button class="small" id="bBack" hidden>&lt; TAKAISIN</button>
+    <div id="status"></div>
+  </div>
+</div>
+
+<div class="scr" id="select" hidden>
+  <div class="box" id="selBox">
+    <h1 style="font-size:24px">VALITSE AUTO JA ASEET</h1>
+    <div id="selTop"><canvas id="prev" width="600" height="260"></canvas></div>
+    <h2>AUTO</h2><div class="row" id="carRow"></div>
+    <h2>ASE</h2><div class="row" id="gunRow"></div>
+    <h2>ERIKOISASE</h2><div class="row" id="specRow"></div>
+    <div id="others"></div>
+    <button class="big" id="bReady">VALMIS</button>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div class="tc" id="stick"><div id="knob"></div><div class="lbl" style="top:-16px">KAASU</div><div class="lbl" style="bottom:-16px">JARRU</div></div>
+  <div class="tc tb" id="tFire">AMMU</div>
+  <div class="tc tb" id="tSpec">ERIKOIS</div>
+  <div class="tc tb" id="tHand">KÄSI-<br>JARRU</div>
+</div>
+<div id="rotate">KÄÄNNÄ PUHELIN<br>VAAKATASOON</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="ajoneuvot.js"></script>
+<script src="kaupunki.js"></script>
+<script src="shared.js"></script>
+<script src="client.js"></script>
+</body>
+</html>

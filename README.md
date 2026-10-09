@@ -49,3 +49,14 @@ Neljä autoa (kupla, maasturi, 1910-luvun veteraani, 1920-luvun faetoni), kolme 
 Viimeinen ehjä auto voittaa kierroksen.
 
 Käynnistys: `npm run start:ralli` (oletusportti 3001).
+
+## Helsinkiralli (helsinkiralli/)
+
+Vektorirallin versio Helsingin Kruununhaassa. Kaupunki rakennetaan Helsingin LoD2-rakennusmallin
+viivamallista (`helsinkiralli/data/kruununhaka-lod2.json`, EPSG:3879) muunnosskriptillä
+`helsinkiralli/tools/muunna_kruununhaka.py`, joka tuottaa `public/kaupunki.js`:
+rakennusten pohjat ja seinät, 1 m törmäysruudukon, korkeudet ammuksille, maanpinnan rakennusten
+pohjakorkeuksista, mallin julkisivu- ja kattoviivat sekä aloituspaikkaehdokkaat kaduilta.
+
+Muunnoksen ajo uudelleen: `cd helsinkiralli/tools && python3 muunna_kruununhaka.py ../data/kruununhaka-lod2.json ../public/kaupunki.js`
+(vaatii numpy, scipy, scikit-image). Käynnistys: `npm run start:helsinki` (oletusportti 3002).
