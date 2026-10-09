@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#05050c">
+<title>Helsinkikopteri – moninpeli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#05050c; --fg:#c8d0e0; --dim:#6b7390; --c1:#4fd6ff; --c2:#ffa040; --c3:#ff5ad1; --ok:#9dff9d; --warn:#ffd060; --bad:#ff6060; --line:#2a2f48; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden; font-family:"Share Tech Mono", ui-monospace, monospace;
+    -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:none; overscroll-behavior:none; }
+  canvas#c, canvas#sky, canvas#gl { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
+  canvas#sky { z-index:0; } canvas#gl { z-index:1; pointer-events:none; } canvas#c { z-index:2; }
+  .scr, #touch { z-index:5; }
+  .scr { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,5,12,0.6); overflow:auto; touch-action:pan-y; }
+  .scr[hidden] { display:none; }
+  .box { width:min(600px, 94vw); max-height:96vh; overflow:auto; box-sizing:border-box; padding:16px; border:1px solid var(--line);
+    background:rgba(8,9,20,0.9); text-align:center; box-shadow:0 0 40px rgba(79,214,255,0.12); }
+  h1 { font-family:Orbitron, sans-serif; font-weight:800; letter-spacing:4px; margin:4px 0 2px; font-size:clamp(22px, 6vw, 38px);
+    background:linear-gradient(90deg, var(--c1), var(--c3), var(--c2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:12px; line-height:1.5; }
+  .pane[hidden] { display:none; }
+  button { font:inherit; cursor:pointer; touch-action:manipulation; }
+  .big { display:block; width:100%; margin:9px 0; padding:14px; font-family:Orbitron, sans-serif; font-size:15px; letter-spacing:2px;
+    background:transparent; color:var(--c1); border:2px solid var(--c1); }
+  .big:hover, .big:focus-visible { background:var(--c1); color:#000; outline:none; }
+  .big.alt { color:var(--c2); border-color:var(--c2); } .big.alt:hover { background:var(--c2); color:#000; }
+  .big:disabled { opacity:0.35; cursor:default; background:transparent; color:var(--dim); border-color:var(--dim); }
+  .small { background:none; border:none; color:var(--dim); padding:10px; font-size:12px; }
+  #code { font-family:Orbitron, sans-serif; font-size:42px; letter-spacing:12px; color:var(--ok); margin:6px 0 10px; }
+  #qr { width:170px; height:170px; image-rendering:pixelated; background:#fff; padding:6px; }
+  #joinUrl { font-size:11px; color:var(--dim); word-break:break-all; margin:8px 0; }
+  #roster { display:flex; gap:8px; justify-content:center; margin:12px 0; flex-wrap:wrap; }
+  .slot { min-width:110px; padding:8px; border:1px dashed var(--line); color:var(--dim); font-size:12px; }
+  .slot.on { border-style:solid; }
+  .modes { display:flex; gap:8px; margin:6px 0; flex-wrap:wrap; }
+  .mode { flex:1 1 150px; text-align:left; padding:10px; background:rgba(255,255,255,0.02); color:var(--fg); border:1px solid var(--line); }
+  .mode b { display:block; font-family:Orbitron, sans-serif; font-weight:500; font-size:13px; letter-spacing:1px; color:var(--c1); margin-bottom:4px; }
+  .mode span { font-size:11px; color:var(--dim); line-height:1.4; }
+  .mode.on { border-color:var(--ok); box-shadow:0 0 0 1px var(--ok) inset; } .mode.on b { color:var(--ok); }
+  .mode:disabled { cursor:default; }
+  input#codeIn { font-family:Orbitron, sans-serif; font-size:30px; width:5.4em; text-align:center; letter-spacing:8px; text-transform:uppercase;
+    background:#000; color:var(--ok); border:2px solid var(--ok); padding:8px; margin:10px 0; touch-action:manipulation; }
+  #status { min-height:1.3em; color:var(--bad); font-size:12px; margin-top:8px; }
+  .help { text-align:left; font-size:11px; color:var(--dim); line-height:1.8; margin-top:10px; border-top:1px solid var(--line); padding-top:8px; }
+  .help b { color:var(--fg); font-weight:normal; }
+  .opts { display:flex; gap:8px; justify-content:center; margin:8px 0 2px; flex-wrap:wrap; }
+  .opt { background:none; border:1px solid var(--line); color:var(--dim); padding:7px 10px; font-size:12px; }
+  .opt.on { color:var(--ok); border-color:var(--ok); }
+  @media (max-height: 520px) { #qr { width:110px; height:110px; } #code { font-size:28px; margin:2px 0 4px; } .big { padding:9px; margin:6px 0; } .mode { padding:7px; } .help { display:none; } }
+  #touch { position:fixed; inset:0; pointer-events:none; }
+  #touch[hidden] { display:none; }
+  .stick { position:absolute; bottom:4vh; width:34vmin; height:34vmin; border-radius:50%; border:2px solid rgba(79,214,255,0.35);
+    background:rgba(79,214,255,0.05); pointer-events:auto; touch-action:none; }
+  .stick .knob { position:absolute; left:32%; top:32%; width:36%; height:36%; border-radius:50%; background:rgba(79,214,255,0.3); border:2px solid rgba(79,214,255,0.7); }
+  .stick span { position:absolute; left:0; right:0; top:-18px; text-align:center; font-size:10px; color:var(--dim); }
+  #stL { left:3vw; } #stR { right:3vw; }
+  .tb { position:absolute; top:calc(8px + env(safe-area-inset-top)); pointer-events:auto; background:rgba(8,9,20,0.6); color:var(--c1);
+    border:1px solid rgba(79,214,255,0.5); padding:8px 10px; font-size:11px; letter-spacing:1px; }
+  .tb.on { color:var(--ok); border-color:var(--ok); }
+  #tFire { position:absolute; right:calc(3vw + 36vmin); bottom:6vh; width:20vmin; height:20vmin; border-radius:50%; pointer-events:auto; touch-action:none;
+    border:2px solid rgba(255,224,102,0.85); color:#ffe066; background:rgba(0,0,0,0.3); font-family:Orbitron, sans-serif; font-size:12px; letter-spacing:1px; }
+  #tFire.on { background:rgba(255,224,102,0.3); }
+  #tFire[hidden] { display:none; }
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<canvas id="gl"></canvas>
+<canvas id="c"></canvas>
+
+<div class="scr" id="lobby">
+  <div class="box">
+    <h1>HELSINKIKOPTERI</h1>
+    <div class="sub">MONINPELI · KRUUNUNHAKA · 1–3 PELAAJAA · KUKIN OMALLA LAITTEELLAAN</div>
+    <div class="pane" id="pMenu">
+      <button class="big" id="bCreate">LUO PELI (QR-KOODI)</button>
+      <button class="big alt" id="bJoin">LIITY PELIIN</button>
+    </div>
+    <div class="pane" id="pHost" hidden>
+      <div class="sub">PELIN KOODI</div>
+      <div id="code">----</div>
+      <img id="qr" alt="QR-koodi pelin liittymislinkkiin">
+      <div id="joinUrl"></div>
+    </div>
+    <div class="pane" id="pJoin" hidden>
+      <div class="sub">ANNA PELIN NELIKIRJAIMINEN KOODI</div>
+      <input id="codeIn" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <button class="big" id="bJoinGo">LIITY</button>
+    </div>
+    <div class="pane" id="pRoom" hidden>
+      <div id="roster"></div>
+      <div class="modes">
+        <button class="mode" id="m_free"><b>VAPAA LENTO</b><span>Lentäkää yhdessä kaupungin yllä. Ei aseita, ei törmäyksiä toisiin.</span></button>
+        <button class="mode" id="m_race"><b>REITTIKILPAILU</b><span>Samat 10 porttia kaikille, lopuksi laskeutuminen kotikentälle. Nopein voittaa.</span></button>
+        <button class="mode" id="m_fight"><b>TAISTELU</b><span>Yksi tykki, osuu vain läheltä (55 m). 5 pudotusta tai eniten 6 minuutissa voittaa.</span></button>
+      </div>
+      <div class="sub" id="roomInfo"></div>
+      <button class="big" id="bBegin">ALOITA</button>
+    </div>
+    <div class="opts">
+      <button class="opt on" id="oStab">VAKAIN PÄÄLLÄ</button>
+      <button class="opt" id="oView">NÄKYMÄ: ULKOA</button>
+    </div>
+    <div class="help" id="helpKeys">
+      <b>NÄPPÄIMISTÖ</b><br>
+      NUOLET syklinen ohjaus · W / S kollektiivi (nousu / lasku) · A / D pyrstöroottori (kääntö)<br>
+      VÄLILYÖNTI / F ampuu (taistelu) · V näkymä ulkoa / ohjaamosta · H vakain · M kartta · 9 äänet · ESC kahdesti = poistu<br>
+      Peliohjain: vasen tikku kollektiivi ja kääntö, oikea tikku syklinen, RT / A ampuu.
+    </div>
+    <div class="help" id="helpTouch" hidden>
+      <b>KOSKETUS</b><br>
+      Vasen tikku: nousu/lasku ja kääntö · Oikea tikku: syklinen · AMMU-nappi taistelussa. Vaakanäyttö suositeltu.
+    </div>
+    <button class="small" id="bBack" hidden>&lt; TAKAISIN</button>
+    <div id="status"></div>
+  </div>
+</div>
+
+<div id="touch" hidden>
+  <div class="stick" id="stL"><span>NOUSU · KÄÄNTÖ</span><div class="knob"></div></div>
+  <div class="stick" id="stR"><span>SYKLINEN</span><div class="knob"></div></div>
+  <button id="tFire" hidden>AMMU</button>
+  <button class="tb" id="tView" style="left:calc(8px + env(safe-area-inset-left))">NÄKYMÄ</button>
+  <button class="tb" id="tStab" style="left:calc(92px + env(safe-area-inset-left))">VAKAIN</button>
+  <button class="tb" id="tMenu" style="left:calc(168px + env(safe-area-inset-left))">POISTU</button>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/yhteiset/ajoneuvot.js"></script>
+<script src="/yhteiset/kaupunki.js"></script>
+<script src="/yhteiset/kaupunki-mesh.js"></script>
+<script src="/yhteiset/gl3d.js"></script>
+<script src="/yhteiset/sw3d.js"></script>
+<script src="/yhteiset/shared.js"></script>
+<script src="kyhteinen.js"></script>
+<script src="moni.js"></script>
+</body>
+</html>

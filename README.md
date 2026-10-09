@@ -78,3 +78,16 @@ maasto ja piirtomoottori (WebGL tai varapiirto) tulevat suoraan `helsinkiralli/p
 - Ohjaus: nuolet syklinen, W/S kollektiivi, A/D pyrstöroottori; peliohjain; puhelimessa kaksi kosketustikkua.
 
 Käynnistys: `npm run start:kopteri` (oletusportti 3003).
+
+## Helsinkikopteri – moninpeli (helsinkikopteri-moni/)
+
+1–3 pelaajaa omilla helikoptereillaan Kruununhaan yllä, kukin omalla laitteellaan (huonekoodi ja QR-koodi kuten rallissa).
+Lento, näkymät (ulkoa / ohjaamosta), vakain ja mittaristo ovat samat kuin yksinpelissä; ympäristö tulee `helsinkiralli/public`-kansiosta.
+
+- **Vapaa lento:** yhteinen lento ilman aseita; toisten läpi voi lentää.
+- **Reittikilpailu:** samat 10 porttia kaikille (siemenluvusta), lopuksi laskeutuminen kotikentälle. Tuhoutunut kopteri palaa viimeisen portin kohdalle.
+- **Taistelu:** yksi kiinteä tykki nokassa. Osuu vain 55 m päähän ja 2,3 m säteellä, 4 vahinkoa/osuma (25 osumaa pudottaa), tykki ylikuumenee jatkuvassa tulessa.
+  5 pudotusta tai eniten 6 minuutissa voittaa. Uusi kopteri ilmaan 4 s kuluttua, 3 s suoja. Törmäys toiseen kopteriin tuhoaa molemmat.
+- Palvelin (`server.js`) välittää tilat 20 Hz ja ratkaisee osumat, tuhot, portit ja voittajan; yhteinen koodi `public/kyhteinen.js`.
+
+Käynnistys: `npm run start:kopterimoni` (oletusportti 3004).
