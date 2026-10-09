@@ -20,7 +20,7 @@ const BOTS = ['*', 'Googlebot', 'Bingbot', 'Slurp', 'DuckDuckBot', 'Baiduspider'
 const ROBOTS = BOTS.map(b => 'User-agent: ' + b + '\nDisallow: /\n').join('\n');
 app.get('/robots.txt', (req, res) => res.type('text/plain').send(ROBOTS));
 app.get('/health', (req, res) => res.send('ok'));
-const SHARED = ['kaupunki.js', 'kaupunki-mesh.js', 'gl3d.js', 'sw3d.js', 'shared.js', 'ajoneuvot.js'];
+const SHARED = ['kaupunki.js', 'kaupunki-mesh.js', 'gl3d.js', 'sw3d.js', 'shared.js', 'ajoneuvot.js', 'lisenssit.js'];
 for (const f of SHARED) app.get('/yhteiset/' + f, (req, res) => res.sendFile(path.join(__dirname, '..', 'helsinkiralli', 'public', f), { maxAge: '1h' }));
 app.use(express.static(path.join(__dirname, 'public')));
 const server = http.createServer(app);
