@@ -1,0 +1,83 @@
+{
+  "source": "Helsinki City Models export, user-supplied",
+  "crs": "EPSG:3879",
+  "coordinates": "Three.js x=easting-origin.x, y=height-origin.z, z=-(northing-origin.y)",
+  "origin_epsg3879": {
+    "easting": 25500141.216,
+    "northing": 6674689.595,
+    "height": 0.0
+  },
+  "bounds_epsg3879": {
+    "min": [
+      25499949.626884,
+      6674507.618948,
+      2.164586
+    ],
+    "max": [
+      25500332.805605,
+      6674871.571571,
+      32.17
+    ]
+  },
+  "bounds_local": {
+    "min": [
+      -191.58911599963903,
+      2.164586,
+      -181.97657100018114
+    ],
+    "max": [
+      191.58960500359535,
+      32.17,
+      181.97605200018734
+    ]
+  },
+  "layers": {
+    "buildings": {
+      "file": "buildings.glb",
+      "byte_size": 6506796,
+      "texture_atlases": 2,
+      "draw_primitives": 3,
+      "triangles": 3887,
+      "image_count": 587,
+      "material_groups": 588,
+      "primitives": [
+        {
+          "atlas_page": 0,
+          "triangle_count": 1030
+        },
+        {
+          "atlas_page": 1,
+          "triangle_count": 1793
+        },
+        {
+          "atlas_page": 2,
+          "triangle_count": 1064
+        }
+      ]
+    },
+    "terrain": {
+      "file": "terrain.glb",
+      "byte_size": 7826172,
+      "texture_atlases": 2,
+      "draw_primitives": 2,
+      "triangles": 37295,
+      "image_count": 47,
+      "material_groups": 47,
+      "primitives": [
+        {
+          "atlas_page": 0,
+          "triangle_count": 30534
+        },
+        {
+          "atlas_page": 1,
+          "triangle_count": 6761
+        }
+      ]
+    }
+  },
+  "limits": [
+    "Object data only; no guaranteed street-centrelines or tree meshes",
+    "GLBs contain textured visible 3D geometry, not accurate physics colliders",
+    "Terrain orthophoto includes streets as pixels, not drivable road surfaces"
+  ]
+}
