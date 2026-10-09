@@ -23,7 +23,7 @@ function resize() {
 const V = { ctx: mainCtx, w: 1, h: 1, cx: 0, cy: 0, F: 1, C: [0,0,0], r: [1,0,0], u: [0,1,0], f: [0,0,1], fogNear: 300, fogFar: 1800, lwk: 1 };
 const FOG = [10, 9, 24], NEAR = 0.6;
 function setView(ctx, w, h, camPos, look, fog = [300, 1800]) {
-  V.ctx = ctx; V.w = w; V.h = h; V.cx = w / 2; V.cy = h * 0.44; V.F = Math.max(w * 0.62, h * 0.95);
+  V.ctx = ctx; V.w = w; V.h = h; V.cx = w / 2; V.cy = h * 0.5; V.F = Math.max(w * 0.46, h * 0.78);       // laajempi kuvakulma kuin vektorirallissa
   V.C = camPos; V.f = norm(look);
   let r = cross([0, 1, 0], V.f); if (vlen(r) < 1e-4) r = [1, 0, 0]; V.r = norm(r); V.u = cross(V.f, V.r);
   V.fogNear = fog[0]; V.fogFar = fog[1]; V.lwk = Math.max(1, Math.min(w, h) / 600);
@@ -606,7 +606,7 @@ function camTarget() {
 function updateCam(dt) {
   const t = camTarget(); if (!t) return;
   const fh = [Math.sin(t.yaw), 0, Math.cos(t.yaw)];
-  const back = camMode ? 17 : 10.5, up = camMode ? 8 : 4.6;
+  const back = camMode ? 22 : 15, up = camMode ? 11 : 7.5;
   const want = [t.pos[0] - fh[0] * back, 0, t.pos[2] - fh[2] * back];
   want[1] = Math.max(t.pos[1] + up, H(want[0], want[2]) + 2.2);
   if (!cam.pos) cam.pos = want; else { const k = Math.min(1, dt * 6); cam.pos = [cam.pos[0] + (want[0] - cam.pos[0]) * k, cam.pos[1] + (want[1] - cam.pos[1]) * k, cam.pos[2] + (want[2] - cam.pos[2]) * k]; }
@@ -617,7 +617,7 @@ function updateCam(dt) {
       const k = s / L, x = hx + dx * k, z = hz + dz * k, y = hy + dy * k;
       if (RD.solid(x, z) && RD.bldH(x, z) > y) { const kk = Math.max(0.15, (s - 0.9) / L); cam.pos = [hx + dx * kk, hy + dy * kk, hz + dz * kk]; break; }
     } }
-  const target = add(t.pos, [fh[0] * 7, 1.6, fh[2] * 7]);
+  const target = add(t.pos, [fh[0] * 9, 4.2, fh[2] * 9]);
   cam.look = sub(target, cam.pos);
 }
 function drawSky(ctx, w, h) {
@@ -1029,16 +1029,15 @@ function update(dt) {
 const FOGC = [10, 9, 24];
 function render3D(camPos, look, fog) {
   setView(skyCtx, SW, SH, camPos, look, fog);
-  drawSky(skyCtx, SW, SH);
   mainCtx.clearRect(0, 0, SW, SH);
-  if (!G3) return;
+  if (!G3) { drawSky(skyCtx, SW, SH); return; }
   buildScene();
   G3.render(V, fog, FOGC);
 }
 function render() {
   if (mode === 'select') { drawLobbyBg(); drawPreview(); return; }
   if (mode === 'lobby' || !me || !cam.pos) { drawLobbyBg(); return; }
-  render3D(cam.pos, cam.look, isTouch ? [170, 480] : [220, 640]);
+  render3D(cam.pos, cam.look, isTouch ? [260, 760] : [320, 950]);
   drawTags(mainCtx);
   drawMinimap(mainCtx);
   drawHUD(mainCtx);
