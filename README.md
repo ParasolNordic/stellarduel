@@ -52,11 +52,16 @@ Käynnistys: `npm run start:ralli` (oletusportti 3001).
 
 ## Helsinkiralli (helsinkiralli/)
 
-Vektorirallin versio Helsingin Kruununhaassa. Kaupunki rakennetaan Helsingin LoD2-rakennusmallin
-viivamallista (`helsinkiralli/data/kruununhaka-lod2.json`, EPSG:3879) muunnosskriptillä
-`helsinkiralli/tools/muunna_kruununhaka.py`, joka tuottaa `public/kaupunki.js`:
-rakennusten pohjat ja seinät, 1 m törmäysruudukon, korkeudet ammuksille, maanpinnan rakennusten
-pohjakorkeuksista, mallin julkisivu- ja kattoviivat sekä aloituspaikkaehdokkaat kaduilta.
+Vektorirallin versio Helsingin Kruununhaassa, piirretty WebGL:llä syvyyspuskurin avulla.
+Kaupunki on Helsingin LoD2-rakennusmallin oikea kolmioverkko (`helsinkiralli/data/kruununhaka-mesh.json`,
+EPSG:3879, 81 850 kolmiota ja 48 614 viivaa). Rakennusten seinät ja katot peittävät taakse jäävän täsmälleen
+kuten LoD2-katselimessa; viivat piirretään pintojen päälle.
 
-Muunnoksen ajo uudelleen: `cd helsinkiralli/tools && python3 muunna_kruununhaka.py ../data/kruununhaka-lod2.json ../public/kaupunki.js`
+Muunnosskripti `helsinkiralli/tools/muunna_mesh.py` tuottaa:
+- `public/kaupunki.js` (palvelin + selain): törmäysruudukko 1 m (kolmioiden pohjista), korkeudet 2 m
+  ammuksille ja näkyvyydelle, maanpinta 4 m (kadun puoleisten seinien alareunoista) ja aloituspaikat
+- `public/kaupunki-mesh.js` (selain): kolmiot, viivat ja maan pintaluokat (katu, jalkakäytävä, aukio)
+
+Ajo uudelleen: `cd helsinkiralli/tools && python3 muunna_mesh.py ../data/kruununhaka-mesh.json ../public`
 (vaatii numpy, scipy, scikit-image). Käynnistys: `npm run start:helsinki` (oletusportti 3002).
+Vanha viivamallista arvaava muunnos on tallessa tiedostossa `tools/muunna_kruununhaka.py`.

@@ -13,7 +13,9 @@
   :root { --bg:#05050c; --fg:#c8d0e0; --dim:#6b7390; --c1:#4fd6ff; --c2:#ffa040; --c3:#ff5ad1; --ok:#9dff9d; --warn:#ffd060; --bad:#ff6060; --line:#2a2f48; }
   html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); overflow:hidden; font-family:"Share Tech Mono", ui-monospace, monospace;
     -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; touch-action:none; overscroll-behavior:none; }
-  canvas#c { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
+  canvas#c, canvas#sky, canvas#gl { position:fixed; inset:0; width:100vw; height:100vh; display:block; }
+  canvas#sky { z-index:0; } canvas#gl { z-index:1; pointer-events:none; } canvas#c { z-index:2; }
+  .scr, #touch, #rotate { z-index:5; }
   .scr { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(5,5,12,0.72); overflow:auto; touch-action:pan-y; }
   .scr[hidden] { display:none; }
   .box { width:min(560px, 94vw); max-height:96vh; overflow:auto; box-sizing:border-box; padding:16px; border:1px solid var(--line);
@@ -72,6 +74,8 @@
 </style>
 </head>
 <body>
+<canvas id="sky"></canvas>
+<canvas id="gl"></canvas>
 <canvas id="c"></canvas>
 
 <div class="scr" id="lobby">
@@ -132,6 +136,8 @@
 <script src="/socket.io/socket.io.js"></script>
 <script src="ajoneuvot.js"></script>
 <script src="kaupunki.js"></script>
+<script src="kaupunki-mesh.js"></script>
+<script src="gl3d.js"></script>
 <script src="shared.js"></script>
 <script src="client.js"></script>
 </body>

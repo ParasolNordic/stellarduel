@@ -10,13 +10,14 @@ const W0 = RD.buildWorld();
 
 // ===================== PIIRTOMOOTTORI =====================
 const cv = $('c'), mainCtx = cv.getContext('2d');
-let DPR = 1, SW = 0, SH = 0;
+const skyCv = $('sky'), skyCtx = skyCv.getContext('2d'), glCv = $('gl');
+let DPR = 1, SW = 0, SH = 0, G3 = null, glScale = 1, perfT = 0, perfN = 0, perfAcc = 0;
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, isTouch ? 2 : 2);
   const maxW = isTouch ? 1500 : 2200;
   if (window.innerWidth * DPR > maxW) DPR = maxW / window.innerWidth;
   SW = Math.round(window.innerWidth * DPR); SH = Math.round(window.innerHeight * DPR);
-  cv.width = SW; cv.height = SH;
+  cv.width = SW; cv.height = SH; skyCv.width = SW; skyCv.height = SH; glCv.width = Math.round(SW * glScale); glCv.height = Math.round(SH * glScale);
   layoutTouch(); minimapDirty = true;
 }
 const V = { ctx: mainCtx, w: 1, h: 1, cx: 0, cy: 0, F: 1, C: [0,0,0], r: [1,0,0], u: [0,1,0], f: [0,0,1], fogNear: 300, fogFar: 1800, lwk: 1 };
@@ -167,92 +168,29 @@ function outward(pts, center) {
   let m = [0, 0, 0]; for (const p of pts) m = add(m, p); m = scl(m, 1 / pts.length);
   return dot(n, sub(m, center)) >= 0 ? pts : pts.slice().reverse();
 }
-// ---------- Kruununhaan geometria (kaupunki.js) ----------
-const L_SUN = norm([0.5, 0.8, 0.3]);
-const KCOL = { ground: hex('#191b24'), groundE: hex('#262a38'), wall: hex('#0d1320'), wallE: hex('#37c9ff'), fac: hex('#2f8fc4'),
-  roof: hex('#ffb84d'), fence: hex('#ff61c6') };
-// maanpinta 16 m laattoina
-const groundTiles = [];
-{ const T = 22;
-  for (let x = RD.BX0; x < RD.BX1; x += T) for (let z = RD.BZ0; z < RD.BZ1; z += T) {
-    const x1 = Math.min(RD.BX1, x + T), z1 = Math.min(RD.BZ1, z + T);
-    const pts = upward([[x, H(x, z), z], [x, H(x, z1), z1], [x1, H(x1, z1), z1], [x1, H(x1, z), z]]);
-    const n = normalAt((x + x1) / 2, (z + z1) / 2);
-    groundTiles.push({ c: [(x + x1) / 2, 0, (z + z1) / 2], pts, shade: 0.8 + 0.35 * Math.max(0, dot(n, L_SUN)) });
-  } }
+// ---------- Kruununhaka: WebGL-piirto (gl3d.js) ja 2D-karttakuva ----------
+const KCOL = { fence: hex('#ff61c6') };
 // pelialueen raja: matala aita
 const fence = [];
 { const e = RD.EDGE, xa = RD.BX0 + e, xb = RD.BX1 - e, za = RD.BZ0 + e, zb = RD.BZ1 - e, st = 6;
   const add2 = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(L / st);
     for (let k = 0; k < n; k++) { const a = [x0 + (x1 - x0) * k / n, 0, z0 + (z1 - z0) * k / n], b = [x0 + (x1 - x0) * (k + 1) / n, 0, z0 + (z1 - z0) * (k + 1) / n];
       a[1] = H(a[0], a[2]); b[1] = H(b[0], b[2]);
-      fence.push({ c: a, f: [a[0], a[1] + 1.1, a[2], b[0], b[1] + 1.1, b[2], a[0], a[1], a[2], a[0], a[1] + 1.1, a[2]] }); } };
+      fence.push([[a[0], a[1] + 1.1, a[2]], [b[0], b[1] + 1.1, b[2]]], [[a[0], a[1], a[2]], [a[0], a[1] + 1.1, a[2]]]); } };
   add2(xa, za, xb, za); add2(xb, za, xb, zb); add2(xb, zb, xa, zb); add2(xa, zb, xa, za); }
-// rakennukset: seinät pohjien mukaan (pätkät max 18 m) + mallin julkisivu- ja kattoviivat
-const BLD = KD_BUILDINGS();
-function windowLines(w, dense) {
-  if (w.win && w.win.dense === dense) return w.win.f;
-  const P = w.pts, [p0, p1, p2, p3] = P[0][1] < P[3][1] ? P : [P[3], P[2], P[1], P[0]], f = [];
-  const bot0 = p0[1] + 4.2, bot1 = p1[1] + 4.2, top0 = p3[1] - 1.2, top1 = p2[1] - 1.2;
-  for (let k = 0; k < 9; k++) {
-    const y0 = bot0 + k * 3.4, y1 = bot1 + k * 3.4;
-    if (y0 > top0 || y1 > top1) break;
-    f.push(p0[0], y0, p0[2], p1[0], y1, p1[2]);
+// kartan pohjakuva rakennusalueesta (1 px = 1 m)
+const MAPIMG = (() => {
+  const o = RD.KD.occ, c = document.createElement('canvas'); c.width = o.nx; c.height = o.nz;
+  const g = c.getContext('2d'), im = g.createImageData(o.nx, o.nz), d = im.data;
+  for (let iz = 0; iz < o.nz; iz++) for (let ix = 0; ix < o.nx; ix++) {
+    const k = iz * o.nx + ix, solid = RD.solidCell(ix, iz), edge = solid && (!RD.solidCell(ix + 1, iz) || !RD.solidCell(ix - 1, iz) || !RD.solidCell(ix, iz + 1) || !RD.solidCell(ix, iz - 1));
+    const inside = RD.inBounds(o.x0 + ix + 0.5, o.z0 + iz + 0.5);
+    const col = edge ? [55, 201, 255, 255] : solid ? [34, 64, 106, 255] : inside ? [27, 30, 42, 255] : [8, 9, 16, 255];
+    d.set(col, k * 4);
   }
-  if (dense) {
-    const L = Math.hypot(p1[0] - p0[0], p1[2] - p0[2]), n = Math.floor(L / 3.6);
-    for (let k = 1; k < n; k++) { const t = k / n, x = p0[0] + (p1[0] - p0[0]) * t, z = p0[2] + (p1[2] - p0[2]) * t;
-      const yb = p0[1] + (p1[1] - p0[1]) * t + 4.2, yt = p3[1] + (p2[1] - p3[1]) * t - 1.2; if (yt > yb) f.push(x, yb, z, x, yt, z); }
-  }
-  w.win = { dense, f: new Float32Array(f) };
-  return w.win.f;
-}
-function KD_BUILDINGS() {
-  return RD.KD.buildings.map(b => {
-    const walls = [], bySeg = [];
-    let gi = 0, minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9;
-    for (const ring of b.r) {
-      const n = ring.length / 3;
-      for (let k = 0; k < n; k++) {
-        const ax = ring[k * 3], az = ring[k * 3 + 1], ae = ring[k * 3 + 2];
-        const bx = ring[((k + 1) % n) * 3], bz = ring[((k + 1) % n) * 3 + 1], be = ring[((k + 1) % n) * 3 + 2];
-        minx = Math.min(minx, ax); maxx = Math.max(maxx, ax); minz = Math.min(minz, az); maxz = Math.max(maxz, az);
-        const L = Math.hypot(bx - ax, bz - az), m = Math.max(1, Math.ceil(L / 18)), ox = (bz - az) / (L || 1), oz = -(bx - ax) / (L || 1);
-        const pieces = [];
-        for (let j = 0; j < m; j++) {
-          const t0 = j / m, t1 = (j + 1) / m;
-          const px = ax + (bx - ax) * t0, pz = az + (bz - az) * t0, qx = ax + (bx - ax) * t1, qz = az + (bz - az) * t1;
-          const pe = ae + (be - ae) * t0, qe = ae + (be - ae) * t1, pg = H(px, pz) - 0.6, qg = H(qx, qz) - 0.6;
-          let pts = [[px, pg, pz], [qx, qg, qz], [qx, qe, qz], [px, pe, pz]];
-          const nn = cross(sub(pts[1], pts[0]), sub(pts[3], pts[0]));
-          if (nn[0] * ox + nn[2] * oz < 0) pts = pts.reverse();
-          const w = { c: [(px + qx) / 2, (pg + pe) / 2, (pz + qz) / 2], pts, t0, t1, lines: [] };
-          pieces.push(w); walls.push(w);
-        }
-        bySeg[gi++] = { pieces, ax, az, dx: bx - ax, dz: bz - az, L2: (bx - ax) ** 2 + (bz - az) ** 2 || 1 };
-      }
-    }
-    const roofCells = new Map();
-    for (const l of b.L) {
-      const seg = [l[1] / 10, l[2] / 10, l[3] / 10, l[4] / 10, l[5] / 10, l[6] / 10];
-      if (l[0] >= 0 && bySeg[l[0]]) {
-        const sg = bySeg[l[0]], mx = (seg[0] + seg[3]) / 2, mz = (seg[2] + seg[5]) / 2;
-        const t = clamp(((mx - sg.ax) * sg.dx + (mz - sg.az) * sg.dz) / sg.L2, 0, 0.9999);
-        const pc = sg.pieces.find(p => t >= p.t0 && t < p.t1) || sg.pieces[0];
-        pc.lines.push(...seg);
-      } else {
-        // maanrajassa kulkevat pohjaviivat korvautuvat seinien alareunalla
-        if (Math.max(seg[1], seg[4]) < H((seg[0] + seg[3]) / 2, (seg[2] + seg[5]) / 2) + 2.5) continue;
-        const key = Math.floor(seg[0] / 30) * 1000 + Math.floor(seg[2] / 30);
-        let rc = roofCells.get(key); if (!rc) { rc = { f: [], sx: 0, sy: 0, sz: 0, n: 0 }; roofCells.set(key, rc); }
-        rc.f.push(...seg); rc.sx += seg[0] + seg[3]; rc.sy += seg[1] + seg[4]; rc.sz += seg[2] + seg[5]; rc.n += 2;
-      }
-    }
-    const roofs = [...roofCells.values()].map(r => ({ c: [r.sx / r.n, r.sy / r.n, r.sz / r.n], f: new Float32Array(r.f) }));
-    for (const w of walls) w.lines = new Float32Array(w.lines);
-    return { walls, roofs, c: [(minx + maxx) / 2, 0, (minz + maxz) / 2], rad: Math.hypot(maxx - minx, maxz - minz) / 2 };
-  });
-}
+  g.putImageData(im, 0, 0);
+  return c;
+})();
 // automallien tahkoille kuuluvat koristeviivat
 const CARGEO = CAR_MODELS.map(m => ({ r: m.r, glass: m.glass || [], parts: m.parts.map(pt => {
   const fd = pt.faces.map(f => dot(f.n, pt.v[f.idx[0]]));
@@ -288,6 +226,40 @@ function applyDent(car, lp, s) {
     });
   });
   car.scars = (car.scars || 0) + 1;
+}
+function carGeomGL(car) {
+  const geo = CARGEO[car.ci], o = carOri(car.pos, car.yaw);
+  const pc = hex(PCOL[car.id]);
+  const dmg = car.dead ? 1 : 1 - clamp(car.hp / car.maxHp, 0, 1);
+  const bodyF = car.dead ? [20, 16, 14] : [pc[0] * 0.18, pc[1] * 0.18, pc[2] * 0.2];
+  const bodyE = car.dead ? [90, 70, 60] : [pc[0] * (1 - dmg * 0.45), pc[1] * (1 - dmg * 0.45), pc[2] * (1 - dmg * 0.45)];
+  const cabF = car.dead ? [14, 12, 12] : [pc[0] * 0.1, pc[1] * 0.1, pc[2] * 0.12];
+  const steer = (car.steer || 0) * 0.45, spin = car.spin || 0, cs = Math.cos(spin), sn = Math.sin(spin), ct = Math.cos(steer), st = Math.sin(steer);
+  const base = add(car.pos, [0, 0.02, 0]);
+  const W = v => add(base, RD.toWorld(o, v));
+  const wheelT = (pt, v) => { const c = pt.wheel.c; let x = v[0] - c[0], y = v[1] - c[1], z = v[2] - c[2];
+    const y2 = y * cs - z * sn, z2 = y * sn + z * cs; y = y2; z = z2;
+    if (pt.wheel.front) { const x3 = x * ct + z * st, z3 = -x * st + z * ct; x = x3; z = z3; }
+    return [x + c[0], y + c[1], z + c[2]]; };
+  geo.parts.forEach((pt, k) => {
+    const D = car.dents && car.dents[k];
+    const vs = pt.wheel ? pt.v.map(v => wheelT(pt, v)) : (D ? pt.v.map((v, i) => add(v, D[i])) : pt.v);
+    const wv = vs.map(W);
+    const tone = TONES[pt.tone];
+    const fill = pt.tone === 'body' ? bodyF : pt.tone === 'cabin' ? cabF : (tone ? tone[0] : bodyF);
+    const edge = pt.tone === 'body' || pt.tone === 'cabin' ? bodyE : (car.dead ? [60, 55, 50] : tone[1]);
+    pt.faces.forEach((f, fi) => {
+      const pts = f.idx.map(i => wv[i]);
+      if (pt.tone === 'glass') G3.glass(pts, fill, 140); else G3.poly(pts, fill);
+      for (let i = 0; i < pts.length; i++) G3.line(pts[i], pts[(i + 1) % pts.length], edge);
+      for (const d of pt.decByFace[fi]) G3.line(W(pt.wheel ? wheelT(pt, d[0]) : d[0]), W(pt.wheel ? wheelT(pt, d[1]) : d[1]), edge);
+    });
+  });
+  for (const gp of geo.glass) {
+    const wp = gp.pts.map(W);
+    G3.glass(wp, car.dead ? [20, 22, 28] : [52, 78, 104], 215);
+    for (let i = 0; i < wp.length; i++) G3.line(wp[i], wp[(i + 1) % wp.length], car.dead ? [60, 60, 70] : [160, 214, 245]);
+  }
 }
 function drawCar(car, list) {
   const geo = CARGEO[car.ci], o = carOri(car.pos, car.yaw);
@@ -671,62 +643,46 @@ function drawSky(ctx, w, h) {
   return hz;
 }
 function buildScene() {
-  itemsA = []; itemsB = [];
-  const C = V.C, fh = norm([V.f[0], 0, V.f[2]]);
-  const front = (p, m) => (p[0] - C[0]) * fh[0] + (p[2] - C[2]) * fh[2] > -m;
-  const d2 = (p) => (p[0] - C[0]) ** 2 + (p[2] - C[2]) ** 2;
-  const VIEW = V.fogFar, VIEW2 = VIEW * VIEW;
-  // maanpinta piirretään aina ensin
-  for (const g of groundTiles) if (d2(g.c) < VIEW2 && front(g.c, 24)) poly(g.pts, KCOL.ground, null, { list: itemsA, bias: 1e6, shade: g.shade });
-  // raja-aita
-  for (const f of fence) if (d2(f.c) < VIEW2 && front(f.c, 8)) { const z = camP(f.c)[2]; itemsB.push({ z, kind: 'bt', s: projSegs(f.f), col: fogStr(KCOL.fence, z), lw: 1.4 }); }
-  // rakennukset: seinäpätkät julkisivuviivoineen ja kattoviivat 30 m paloina
-  const farLines = VIEW * 0.75;
-  for (const B of BLD) {
-    const bd = Math.sqrt(d2(B.c)) - B.rad;
-    if (bd > VIEW || !front(B.c, B.rad + 10)) continue;
-    for (const w of B.walls) {
-      if (d2(w.c) > VIEW2 || !front(w.c, 20)) continue;
-      const it = poly(w.pts, KCOL.wall, KCOL.wallE, { lw: 1 });
-      if (!it) continue;
-      // lähellä kerroslinjat ja ikkunajako (antaa julkisivulle mittakaavan), kauempana vain mallin viivat
-      let segs = it.z < farLines && w.lines.length ? projSegs(w.lines) : [];
-      if (it.z < 160) segs = segs.concat(projSegs(windowLines(w, it.z < 70)));
-      if (segs.length) it.bt = { s: segs, col: fogStr(KCOL.fac, it.z), lw: 0.8 };
-    }
-    for (const r of B.roofs) {
-      if (d2(r.c) > VIEW2 || !front(r.c, 20)) continue;
-      const z = camP(r.c)[2]; if (z < -5) continue;
-      itemsB.push({ z: z + 3, kind: 'bt', s: projSegs(r.f), col: fogStr(KCOL.roof, z), lw: 0.9 });
-    }
-  }
+  G3.clear();
+  const C = V.C, VIEW2 = (V.fogFar + 60) ** 2;
+  const d2 = p => (p[0] - C[0]) ** 2 + (p[2] - C[2]) ** 2;
+  for (const f of fence) if (d2(f[0]) < VIEW2) G3.line(f[0], f[1], KCOL.fence);
   // öljyt ja miinat
   if (latest && latest.O) for (const o of latest.O) {
-    const pts = []; for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2, x = o[1] + Math.cos(a) * o[3] * (0.85 + 0.15 * Math.sin(k * 3)), z = o[2] + Math.sin(a) * o[3]; pts.push([x, H(x, z) + 0.12, z]); }
-    poly(upward(pts), [6, 6, 12], [110, 90, 200], { bias: -1 });
+    const pts = []; for (let k = 0; k < 14; k++) { const a = k / 14 * Math.PI * 2, x = o[1] + Math.cos(a) * o[3] * (0.85 + 0.15 * Math.sin(k * 3)), z = o[2] + Math.sin(a) * o[3]; pts.push([x, H(x, z) + 0.14, z]); }
+    G3.glass(pts, [6, 6, 14], 220);
+    for (let k = 0; k < pts.length; k++) G3.line(pts[k], pts[(k + 1) % pts.length], [110, 90, 200]);
   }
   if (latest && latest.M) for (const m of latest.M) {
     const y = H(m[1], m[2]), c = [m[1], y + 0.35, m[2]], b = [];
     for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2; b.push([m[1] + Math.cos(a) * 0.9, y + 0.05, m[2] + Math.sin(a) * 0.9]); }
-    for (let k = 0; k < 6; k++) poly(outward([b[k], b[(k + 1) % 6], c], [m[1], y, m[2]]), [30, 30, 30], [180, 180, 190], {});
-    if (m[3] && (animT * 3 | 0) % 2) addDot(add(c, [0, 0.15, 0]), [255, 60, 60], 0.35);
+    for (let k = 0; k < 6; k++) { G3.tri(b[k], b[(k + 1) % 6], c, [30, 30, 30]); G3.line(b[k], c, [180, 180, 190]); G3.line(b[k], b[(k + 1) % 6], [180, 180, 190]); }
+    if (m[3] && (animT * 3 | 0) % 2) G3.point(add(c, [0, 0.15, 0]), [255, 60, 60], 0.35, false);
   }
   // raketit
   if (latest && latest.K) for (const k of latest.K) {
     const p = [k[1], k[2], k[3]], d = [k[4], k[5], k[6]];
-    addLine(p, madd(p, d, -1.6), [230, 230, 240], 2.5);
+    G3.line(p, madd(p, d, -1.6), [230, 230, 240]);
     if (chance(0.8)) parts.push({ p: madd(p, d, -1.8), v: [rnd(-1, 1), rnd(0, 1), rnd(-1, 1)], t: 0.5, col: chance(0.5) ? [255, 170, 60] : [120, 120, 130], s: 0.5 });
   }
   // autot
   for (const c of cars.values()) {
-    if (d2(c.pos) > 900 * 900) continue;
-    drawCar(c, itemsB);
+    if (d2(c.pos) > VIEW2) continue;
+    carGeomGL(c);
     if (c.dead && chance(0.4)) parts.push({ p: add(c.pos, [rnd(-1, 1), 1.3, rnd(-1, 1)]), v: [rnd(-0.6, 0.6), rnd(2, 4), rnd(-0.6, 0.6)], t: rnd(0.6, 1.2), col: chance(0.5) ? [255, 130, 40] : [60, 60, 70], s: 1 });
-    // nimikyltti muille autoille
-    if (c !== me) { const cp = camP(add(c.pos, [0, 3.2, 0])); if (cp[2] > 2) itemsB.push({ z: cp[2] - 3, kind: 'tag', x: V.cx + cp[0] * V.F / cp[2], y: V.cy - cp[1] * V.F / cp[2], c }); }
   }
-  for (const t of tracers) addLine(t.a, t.b, t.col, 1.6);
-  for (const p of parts) addDot(p.p, p.col, p.s);
+  for (const t of tracers) G3.line(t.a, t.b, t.col);
+  for (const p of parts) G3.point(p.p, p.col, p.s, p.s >= 0.8);
+}
+// muiden autojen nimikyltit 2D-kerrokseen, jos auto ei ole rakennuksen takana
+function drawTags(ctx) {
+  for (const c of cars.values()) {
+    if (c === me) continue;
+    const head = add(c.pos, [0, 3.2, 0]), cp = camP(head); if (cp[2] < 2 || cp[2] > V.fogFar) continue;
+    const d = sub(add(c.pos, [0, 1.2, 0]), V.C), L = vlen(d);
+    if (W0.rayBlock(V.C, scl(d, 1 / L), L) < L - 2.5) continue;
+    drawItemHUD(ctx, { kind: 'tag', x: V.cx + cp[0] * V.F / cp[2], y: V.cy - cp[1] * V.F / cp[2], c });
+  }
 }
 const _drawItem = drawItem;
 function drawItemHUD(ctx, it) {
@@ -753,18 +709,11 @@ function drawMinimap(ctx) {
   const quad = (x0, z0, x1, z1) => { const a = P(x0, z0), b = P(x1, z0), c = P(x1, z1), d = P(x0, z1); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(d[0], d[1]); ctx.closePath(); };
   ctx.save();
   ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fillStyle = 'rgba(4,6,12,0.92)'; ctx.fill(); ctx.clip();
-  // pelialue (katua) ja rakennukset
-  ctx.fillStyle = '#1b1e2a'; quad(RD.BX0 + RD.EDGE, RD.BZ0 + RD.EDGE, RD.BX1 - RD.EDGE, RD.BZ1 - RD.EDGE); ctx.fill();
-  ctx.fillStyle = '#22406a'; ctx.strokeStyle = '#37c9ff'; ctx.lineWidth = Math.max(1, 0.8 * V.lwk);
-  for (const b of RD.KD.buildings) {
-    ctx.beginPath();
-    for (const ring of b.r) {
-      if (!near(ring[0], ring[1], 160)) { ctx.moveTo(0, 0); continue; }
-      for (let k = 0; k < ring.length; k += 3) { const q = P(ring[k], ring[k + 1]); if (k) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); }
-      ctx.closePath();
-    }
-    ctx.fill('evenodd'); ctx.stroke();
-  }
+  // pohjakuva: kuvapiste (u, v) = maailma (x0 + u, z0 + v), muunnetaan samalla P-kuvauksella
+  { const o = RD.KD.occ, e0 = P(o.x0, o.z0);
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    ctx.setTransform(k * rx, -k * fx, k * rz, -k * fz, e0[0], e0[1]);
+    ctx.drawImage(MAPIMG, 0, 0); ctx.restore(); }
   // miinat ja öljyt
   if (latest && latest.O) for (const o of latest.O) { const q = P(o[1], o[2]); ctx.fillStyle = 'rgba(120,100,220,0.6)'; ctx.beginPath(); ctx.arc(q[0], q[1], Math.max(2, o[3] * k), 0, 7); ctx.fill(); }
   if (latest && latest.M) for (const m of latest.M) { const q = P(m[1], m[2]); ctx.fillStyle = '#ff6060'; ctx.fillRect(q[0] - 1.5 * V.lwk, q[1] - 1.5 * V.lwk, 3 * V.lwk, 3 * V.lwk); }
@@ -1077,26 +1026,38 @@ function update(dt) {
   updateCam(dt);
   engineUpdate(ctl.thr || 0);
 }
-function render() {
-  const ctx = mainCtx;
-  if (mode === 'select') { drawLobbyBg(ctx); drawPreview(); return; }
-  if (mode === 'lobby' || !me || !cam.pos) { drawLobbyBg(ctx); return; }
-  setView(ctx, SW, SH, cam.pos, cam.look, isTouch ? [150, 330] : [190, 430]);
-  drawSky(ctx, SW, SH);
+const FOGC = [10, 9, 24];
+function render3D(camPos, look, fog) {
+  setView(skyCtx, SW, SH, camPos, look, fog);
+  drawSky(skyCtx, SW, SH);
+  mainCtx.clearRect(0, 0, SW, SH);
+  if (!G3) return;
   buildScene();
-  flushHUD(itemsA); flushHUD(itemsB);
-  drawMinimap(ctx);
-  drawHUD(ctx);
+  G3.render(V, fog, FOGC);
 }
-function flushHUD(list) { list.sort((a, b) => b.z - a.z); const ctx = V.ctx; ctx.lineJoin = 'round'; for (const it of list) drawItemHUD(ctx, it); }
-function drawLobbyBg(ctx) {
-  const a = animT * 0.05, camPos = [Math.sin(a) * 260, 90 + Math.sin(animT * 0.2) * 20, Math.cos(a) * 260];
-  setView(ctx, SW, SH, camPos, sub([0, 10, 0], camPos), [260, 700]);
-  drawSky(ctx, SW, SH); buildScene(); flushHUD(itemsA); flushHUD(itemsB);
+function render() {
+  if (mode === 'select') { drawLobbyBg(); drawPreview(); return; }
+  if (mode === 'lobby' || !me || !cam.pos) { drawLobbyBg(); return; }
+  render3D(cam.pos, cam.look, isTouch ? [170, 480] : [220, 640]);
+  drawTags(mainCtx);
+  drawMinimap(mainCtx);
+  drawHUD(mainCtx);
+}
+function drawLobbyBg() {
+  const a = animT * 0.05, camPos = [Math.sin(a) * 330, 120 + Math.sin(animT * 0.2) * 20, Math.cos(a) * 330 - 40];
+  render3D(camPos, sub([0, 10, -40], camPos), [320, 900]);
 }
 let lastT = performance.now(), fpsAcc = 0;
 function frame(now) {
-  const dt = Math.min(0.05, Math.max(0, (now - lastT) / 1000)); lastT = now;
+  const rawDt = Math.max(0, (now - lastT) / 1000), dt = Math.min(0.05, rawDt); lastT = now;
+  if (mode === 'fight' || mode === 'countdown' || mode === 'over') {
+    perfAcc += rawDt; perfN++;
+    if (perfAcc > 2.5) {
+      const fps = perfN / perfAcc; perfAcc = 0; perfN = 0;
+      const ns = fps < 32 ? Math.max(0.5, glScale - 0.15) : (fps > 55 && glScale < 1 ? Math.min(1, glScale + 0.1) : glScale);
+      if (ns !== glScale) { glScale = ns; glCv.width = Math.round(SW * glScale); glCv.height = Math.round(SH * glScale); }
+    }
+  }
   try { update(dt); render(); } catch (err) { console.error(err); }
   requestAnimationFrame(frame);
 }
@@ -1109,6 +1070,8 @@ $('bBegin').onclick = () => sock.emit('begin');
 $('bReady').onclick = () => { mySel.ready = !mySel.ready; beep(); sendSel(); updateSelectUI(); };
 if (isTouch) $('helpKeys').style.display = 'none';
 window.addEventListener('resize', () => setTimeout(resize, 60));
+try { G3 = window.HKI_GL.create(glCv, window.HKI_MESH, RD.KD, H); } catch (e) { console.error(e); G3 = null; }
+if (!G3) setStatus('SELAIMESI EI TUE WEBGL:ÄÄ - PELI VAATII SEN');
 setupTouch(); resize(); showPane('pMenu'); connect();
 requestAnimationFrame(frame);
 window.__RD_DEBUG = { get mode() { return mode; }, get me() { return me; }, get cars() { return cars; }, get latest() { return latest; }, get myIdx() { return myIdx; }, keys, touch, get items() { return itemsA.length + itemsB.length; } };
