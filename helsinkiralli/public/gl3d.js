@@ -25,10 +25,21 @@ void main(){
 
 const SKY_VS = `attribute vec2 aXY; attribute vec4 aC; varying vec4 vC; void main(){ gl_Position = vec4(aXY, 0.9999, 1.0); vC = aC; gl_PointSize = 2.0; }`;
 const SKY_FS = `precision mediump float; varying vec4 vC; void main(){ gl_FragColor = vC; }`;
-function create(canvas, mesh, city, H) {
-  const gl = canvas.getContext('webgl', { antialias: true, alpha: false, depth: true });
-  if (!gl) return null;
-  const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw Error(gl.getShaderInfoLog(o)); return o; };
+function getGL(canvas) {
+  const tries = [['webgl', { antialias: true, alpha: false, depth: true }], ['webgl', { antialias: false, alpha: false, depth: true }],
+    ['webgl', {}], ['experimental-webgl', {}]];
+  for (const [kind, attrs] of tries) { try { const gl = canvas.getContext(kind, attrs); if (gl) return gl; } catch (e) { /* seuraava */ } }
+  return null;
+}
+function create(canvas, mesh, city, H, onLost) {
+  const gl = getGL(canvas);
+  if (!gl) throw Error('selain ei antanut WebGL-kontekstia');
+  if (gl.isContextLost && gl.isContextLost()) throw Error('WebGL-konteksti menetetty heti alussa');
+  let lost = false;
+  canvas.addEventListener('webglcontextlost', ev => { ev.preventDefault(); lost = true; if (onLost) onLost('WebGL-konteksti menetettiin'); }, false);
+  const info = { mode: 'WebGL', vendor: '', renderer: '', depthBits: gl.getParameter(gl.DEPTH_BITS), aa: !!(gl.getContextAttributes() || {}).antialias, err: 0 };
+  try { const ext = gl.getExtension('WEBGL_debug_renderer_info'); info.vendor = gl.getParameter(ext ? ext.UNMASKED_VENDOR_WEBGL : gl.VENDOR); info.renderer = gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER); } catch (e) { /* ei tietoa */ }
+  const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw Error('varjostin: ' + gl.getShaderInfoLog(o)); return o; };
   const prog = gl.createProgram();
   gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS));
   gl.bindAttribLocation(prog, 0, 'aPos'); gl.bindAttribLocation(prog, 1, 'aCol'); gl.bindAttribLocation(prog, 2, 'aSize');
@@ -37,6 +48,7 @@ function create(canvas, mesh, city, H) {
   const skyProg = gl.createProgram();
   gl.attachShader(skyProg, sh(gl.VERTEX_SHADER, SKY_VS)); gl.attachShader(skyProg, sh(gl.FRAGMENT_SHADER, SKY_FS));
   gl.bindAttribLocation(skyProg, 0, 'aXY'); gl.bindAttribLocation(skyProg, 1, 'aC'); gl.linkProgram(skyProg);
+  if (!gl.getProgramParameter(skyProg, gl.LINK_STATUS)) throw Error('taivas: ' + gl.getProgramInfoLog(skyProg));
   const skyXY = gl.createBuffer(), skyC = gl.createBuffer();
   gl.useProgram(prog);
   const A = { pos: gl.getAttribLocation(prog, 'aPos'), col: gl.getAttribLocation(prog, 'aCol'), size: gl.getAttribLocation(prog, 'aSize') };
@@ -164,7 +176,9 @@ function create(canvas, mesh, city, H) {
     if (xy.length / 2 > nTri) gl.drawArrays(gl.POINTS, nTri, xy.length / 2 - nTri);
     gl.useProgram(prog); gl.enableVertexAttribArray(2);
   }
+  let frames = 0;
   function render(V, fog, fogColor, viewDist) {
+    if (lost) return;
     const w = canvas.width, h = canvas.height;
     gl.viewport(0, 0, w, h);
     gl.clearColor(fogColor[0] / 255, fogColor[1] / 255, fogColor[2] / 255, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -208,8 +222,10 @@ function create(canvas, mesh, city, H) {
       gl.uniform1f(U.uRound, 0); gl.uniform1f(U.uPts, 0); attrib(A.size, dumS, 1);
     }
     gl.depthMask(true); gl.disable(gl.BLEND);
+    // ensimmäisten ruutujen virhetarkistus: jos ajuri hylkää piirtokutsut, vaihdetaan varapiirtoon
+    if (frames < 3) { frames++; const e = gl.getError(); if (e) { info.err = e; throw Error('WebGL-virhe ' + e + ' piirrossa'); } }
   }
-  return { gl, render, clear, tri, poly, line, glass, point, stats: { tris: faces.length / 3 + gN / 3, lines: edges.length / 2 + flN / 2 + curbN / 2 } };
+  return { gl, info: () => info, render, clear, tri, poly, line, glass, point, stats: { tris: faces.length / 3 + gN / 3, lines: edges.length / 2 + flN / 2 + curbN / 2 } };
 }
 root.HKI_GL = { create };
 })(typeof window !== 'undefined' ? window : this);

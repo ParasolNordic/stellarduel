@@ -943,6 +943,7 @@ window.addEventListener('keydown', ev => {
   keys[c] = true;
   if (ev.repeat) return;
   if (c === 'Digit9') { soundOn = !soundOn; return; }
+  if (c === 'KeyG' && G3 && !G3.sw) { useSoftware('vaihdettu käsin (G)'); return; }
   if (c === 'Escape') { if (escT > 0) { sock.emit('quit'); toLobby(''); } else escT = 2; return; }
   if (mode === 'select') {
     if (c === 'Enter' || c === 'Space') { mySel.ready = !mySel.ready; beep(); sendSel(); updateSelectUI(); }
@@ -1027,12 +1028,44 @@ function update(dt) {
   engineUpdate(ctl.thr || 0);
 }
 const FOGC = [10, 9, 24];
+// Piirtäjä: WebGL, tai jos se ei käynnisty / kaatuu, ohjelmallinen varapiirto (sw3d.js) 2D-kankaalle.
+const DEBUG = /[?&]debug=1\b/.test(location.search);
+let rendInfo = '', rendErr = '';
+function useSoftware(reason) {
+  if (G3 && G3.sw) return;
+  rendErr = reason || '';
+  if (reason) console.warn('Helsinkiralli: WebGL ei käytössä, varapiirto:', reason);
+  glCv.style.display = 'none';
+  try { G3 = window.HKI_SW.create(skyCv, window.HKI_MESH, RD.KD, H); } catch (e) { console.error(e); G3 = null; rendErr += ' / varapiirto: ' + e.message; }
+  rendInfo = 'OHJELMALLINEN PIIRTO';
+}
+function initRenderer(forceSW) {
+  if (!forceSW) {
+    try {
+      G3 = window.HKI_GL.create(glCv, window.HKI_MESH, RD.KD, H, why => useSoftware(why));
+      const i = G3.info(); rendInfo = 'WebGL · ' + (i.renderer || '?') + ' · syvyys ' + i.depthBits + ' bit';
+      glCv.style.display = '';
+    } catch (e) { console.error(e); G3 = null; useSoftware(e.message || String(e)); }
+  } else useSoftware('');
+}
 function render3D(camPos, look, fog) {
   setView(skyCtx, SW, SH, camPos, look, fog);
   mainCtx.clearRect(0, 0, SW, SH);
-  if (!G3) { drawSky(skyCtx, SW, SH); return; }
+  if (!G3 || G3.sw) drawSky(skyCtx, SW, SH);
+  if (!G3) return;
   buildScene();
-  G3.render(V, fog, FOGC);
+  try { G3.render(V, fog, FOGC); }
+  catch (e) { console.error(e); if (!G3.sw) useSoftware(e.message || String(e)); else throw e; }
+}
+function drawDebug(ctx) {
+  if (!DEBUG && !rendErr) return;
+  const lines = [rendInfo + (G3 && G3.sw ? ' · puskuri ' + G3.info().buf + ' · ' + G3.info().ms + ' ms' : '')];
+  if (rendErr) lines.push('WebGL ei käytössä: ' + rendErr.slice(0, 140));
+  if (DEBUG) lines.push('kangas ' + SW + 'x' + SH + ' · gl ' + glCv.width + 'x' + glCv.height + ' · dpr ' + (window.devicePixelRatio || 1).toFixed(2) + ' · ' + navigator.userAgent.slice(0, 110));
+  const k = V.lwk, y0 = SH - (lines.length * 13 + 30) * k;
+  ctx.font = `${Math.round(10 * k)}px "Share Tech Mono", monospace`; ctx.textAlign = 'center';
+  ctx.fillStyle = rendErr ? '#ffd060' : '#9dff9d';
+  lines.forEach((l, i) => ctx.fillText(l.slice(0, 120), SW / 2, y0 + (13 + i * 13) * k));
 }
 function render() {
   if (mode === 'select') { drawLobbyBg(); drawPreview(); return; }
@@ -1041,10 +1074,12 @@ function render() {
   drawTags(mainCtx);
   drawMinimap(mainCtx);
   drawHUD(mainCtx);
+  drawDebug(mainCtx);
 }
 function drawLobbyBg() {
   const a = animT * 0.05, camPos = [Math.sin(a) * 330, 120 + Math.sin(animT * 0.2) * 20, Math.cos(a) * 330 - 40];
   render3D(camPos, sub([0, 10, -40], camPos), [320, 900]);
+  drawDebug(mainCtx);
 }
 let lastT = performance.now(), fpsAcc = 0;
 function frame(now) {
@@ -1069,9 +1104,8 @@ $('bBegin').onclick = () => sock.emit('begin');
 $('bReady').onclick = () => { mySel.ready = !mySel.ready; beep(); sendSel(); updateSelectUI(); };
 if (isTouch) $('helpKeys').style.display = 'none';
 window.addEventListener('resize', () => setTimeout(resize, 60));
-try { G3 = window.HKI_GL.create(glCv, window.HKI_MESH, RD.KD, H); } catch (e) { console.error(e); G3 = null; }
-if (!G3) setStatus('SELAIMESI EI TUE WEBGL:ÄÄ - PELI VAATII SEN');
-setupTouch(); resize(); showPane('pMenu'); connect();
+setupTouch(); resize();
+initRenderer(/[?&]piirto=sw\b/.test(location.search)); showPane('pMenu'); connect();
 requestAnimationFrame(frame);
 window.__RD_DEBUG = { get mode() { return mode; }, get me() { return me; }, get cars() { return cars; }, get latest() { return latest; }, get myIdx() { return myIdx; }, keys, touch, get items() { return itemsA.length + itemsB.length; } };
 })();
