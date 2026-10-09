@@ -23,8 +23,25 @@ void main(){
   gl_FragColor = vec4(mix(vCol.rgb, uFogC, vFog), a);
 }`;
 
-const SKY_VS = `attribute vec2 aXY; attribute vec4 aC; varying vec4 vC; void main(){ gl_Position = vec4(aXY, 0.9999, 1.0); vC = aC; gl_PointSize = 2.0; }`;
-const SKY_FS = `precision mediump float; varying vec4 vC; void main(){ gl_FragColor = vC; }`;
+// taivas: koko ruudun nelikulmio, väri näkösäteen korkeuskulmasta (toimii myös kallistetulla kameralla), tähdet pisteinä
+const SKY_VS = `attribute vec2 aXY; attribute vec4 aC; varying vec4 vC; varying vec2 vP; void main(){ gl_Position = vec4(aXY, 0.9999, 1.0); vC = aC; vP = aXY; gl_PointSize = 2.0; }`;
+const SKY_FS = `
+#ifdef GL_FRAGMENT_PRECISION_HIGH
+precision highp float;
+#else
+precision mediump float;
+#endif
+varying vec4 vC; varying vec2 vP;
+uniform float uMode; uniform vec3 uSR, uSU, uSF, uFogS; uniform vec4 uSV; uniform float uSH;
+void main(){
+  if (uMode < 0.5) { gl_FragColor = vC; return; }
+  float px = (vP.x * 0.5 + 0.5) * uSV.w, py = (0.5 - vP.y * 0.5) * uSH, F = uSV.z;
+  vec3 d = uSF + uSR * ((px - uSV.x) / F) + uSU * ((uSV.y - py) / F);
+  float t = d.y / max(length(d.xz), 1e-3) * F * 2.0 / uSH;
+  vec3 c0 = vec3(4.0, 4.0, 12.0), c1 = vec3(22.0, 12.0, 48.0), c2 = vec3(74.0, 28.0, 74.0), c3 = vec3(122.0, 58.0, 58.0);
+  vec3 c = t < 0.0 ? uFogS * 255.0 : (t < 0.128 ? mix(c3, c2, t / 0.128) : (t < 0.56 ? mix(c2, c1, (t - 0.128) / 0.432) : mix(c1, c0, clamp((t - 0.56) / 1.04, 0.0, 1.0))));
+  gl_FragColor = vec4(c / 255.0, 1.0);
+}`;
 function getGL(canvas) {
   const tries = [['webgl', { antialias: true, alpha: false, depth: true }], ['webgl', { antialias: false, alpha: false, depth: true }],
     ['webgl', {}], ['experimental-webgl', {}]];
@@ -151,29 +168,24 @@ function create(canvas, mesh, city, H, onLost) {
   const COL = { fill: [8, 13, 22], lines: [[55, 201, 255], [255, 184, 77], [255, 97, 198]] };
   // taivas: liukuväri horisonttiin, sen alla sumun väri, tähdet pisteinä (piirretään ensin, syvyys taakse)
   const STARS = []; for (let i = 0; i < 120; i++) { const a = (i * 2.399) % (Math.PI * 2), el = 0.06 + ((i * 0.618) % 1) * 0.9; STARS.push([Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el)]); }
+  const SU = {}; for (const n of ['uMode', 'uSR', 'uSU', 'uSF', 'uFogS', 'uSV', 'uSH']) SU[n] = gl.getUniformLocation(skyProg, n);
   function drawSky(V, fogColor) {
-    const hyp = Math.max(0.05, Math.hypot(V.f[0], V.f[2]));
-    const hyPx = V.cy + V.F * (V.f[1] / hyp), hn = 1 - 2 * hyPx / V.h;            // horisontti NDC:ssä
-    const span = 1.6;                                                                // liukuvärin korkeus NDC:ssä
-    const stops = [[hn + span, [4, 4, 12]], [hn + span * 0.35, [22, 12, 48]], [hn + span * 0.08, [74, 28, 74]], [hn, [122, 58, 58]]];
-    const xy = [], c = [];
-    const quad = (y0, y1, c0, c1) => { xy.push(-1, y0, 1, y0, 1, y1, -1, y0, 1, y1, -1, y1); for (const cc of [c0, c0, c1, c0, c1, c1]) c.push(cc[0], cc[1], cc[2], 255); };
-    quad(Math.max(hn + span, 1.2), 3, stops[0][1], stops[0][1]);
-    for (let i = 0; i < stops.length - 1; i++) quad(stops[i + 1][0], stops[i][0], stops[i + 1][1], stops[i][1]);
-    quad(-3, hn, fogColor, fogColor);
-    const nTri = xy.length / 2;
+    const xy = [-1, -1, 1, -1, 1, 1, -1, -1, 1, 1, -1, 1], c = [];
+    for (let i = 0; i < 6; i++) c.push(0, 0, 0, 255);
     for (const d of STARS) {
       const z = d[0] * V.f[0] + d[1] * V.f[1] + d[2] * V.f[2]; if (z < 0.1) continue;
       const sx = V.cx + (d[0] * V.r[0] + d[1] * V.r[1] + d[2] * V.r[2]) * V.F / z, sy = V.cy - (d[0] * V.u[0] + d[1] * V.u[1] + d[2] * V.u[2]) * V.F / z;
-      const ny = 1 - 2 * sy / V.h; if (ny < hn + 0.05) continue;
-      xy.push(2 * sx / V.w - 1, ny); c.push(150, 165, 200, 255);
+      xy.push(2 * sx / V.w - 1, 1 - 2 * sy / V.h); c.push(150, 165, 200, 255);
     }
     gl.useProgram(skyProg); gl.disable(gl.DEPTH_TEST);
+    gl.uniform3fv(SU.uSR, V.r); gl.uniform3fv(SU.uSU, V.u); gl.uniform3fv(SU.uSF, V.f);
+    gl.uniform3f(SU.uFogS, fogColor[0] / 255, fogColor[1] / 255, fogColor[2] / 255);
+    gl.uniform4f(SU.uSV, V.cx, V.cy, V.F, V.w); gl.uniform1f(SU.uSH, V.h);
     gl.bindBuffer(gl.ARRAY_BUFFER, skyXY); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(xy), gl.DYNAMIC_DRAW); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0); gl.enableVertexAttribArray(0);
     gl.bindBuffer(gl.ARRAY_BUFFER, skyC); gl.bufferData(gl.ARRAY_BUFFER, new Uint8Array(c), gl.DYNAMIC_DRAW); gl.vertexAttribPointer(1, 4, gl.UNSIGNED_BYTE, true, 0, 0); gl.enableVertexAttribArray(1);
     gl.disableVertexAttribArray(2);
-    gl.drawArrays(gl.TRIANGLES, 0, nTri);
-    if (xy.length / 2 > nTri) gl.drawArrays(gl.POINTS, nTri, xy.length / 2 - nTri);
+    gl.uniform1f(SU.uMode, 1); gl.drawArrays(gl.TRIANGLES, 0, 6);
+    gl.uniform1f(SU.uMode, 0); if (xy.length / 2 > 6) gl.drawArrays(gl.POINTS, 6, xy.length / 2 - 6);
     gl.useProgram(prog); gl.enableVertexAttribArray(2);
   }
   let frames = 0;

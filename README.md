@@ -65,3 +65,16 @@ Muunnosskripti `helsinkiralli/tools/muunna_mesh.py` tuottaa:
 Ajo uudelleen: `cd helsinkiralli/tools && python3 muunna_mesh.py ../data/kruununhaka-mesh.json ../public`
 (vaatii numpy, scipy, scikit-image). Käynnistys: `npm run start:helsinki` (oletusportti 3002).
 Vanha viivamallista arvaava muunnos on tallessa tiedostossa `tools/muunna_kruununhaka.py`.
+
+## Helsinkikopteri (helsinkikopteri/)
+
+Yksinpelattava helikopterisimulaattori täsmälleen samassa ympäristössä kuin Helsinkiralli: Kruununhaan LoD2-malli,
+maasto ja piirtomoottori (WebGL tai varapiirto) tulevat suoraan `helsinkiralli/public`-kansiosta (palvelin jakaa ne polussa `/yhteiset/`).
+
+- Näkymät: ulkoa (jahtikamera) ja ohjaamosta (ikkunakehys ja mittaristo: nopeus, keinohorisontti, korkeus, vario, kompassi, kollektiivi). V vaihtaa.
+- Tilat: vapaa lento, reittilento (10 porttia katujen yllä ja kattojen yli, laskeutuminen kotikentälle) ja kattolaskeutumiset (5 tasakattoa).
+- Vakain (H): pitää kopterin vaakatasossa ja korkeuden, rajoittaa vajoamaa lähellä pintaa. Ilman vakainta kollektiivi on vipu ja ohjaus kulmanopeuksia.
+- Tuho: roottori tai runko osuu rakennukseen tai maahan, liian kova tai vino laskeutuminen.
+- Ohjaus: nuolet syklinen, W/S kollektiivi, A/D pyrstöroottori; peliohjain; puhelimessa kaksi kosketustikkua.
+
+Käynnistys: `npm run start:kopteri` (oletusportti 3003).
