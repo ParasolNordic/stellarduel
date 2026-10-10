@@ -59,6 +59,7 @@ export class WeaponSystem {
     this.zoomIdx = THREE.MathUtils.clamp(this.zoomIdx + (dir > 0 ? -1 : 1), 0, z.length - 1); this.sound.click(4000, 0.15);
     return true;
   }
+  cycleZoom() { const z = this.def.zoom; if (!z) return; this.zoomIdx = (this.zoomIdx + 1) % z.length; this.sound.click(4000, 0.15); }
   get zoom() { const z = this.def.zoom; return z ? z[this.zoomIdx] : 1; }
 
   // ---------- päivitys ----------

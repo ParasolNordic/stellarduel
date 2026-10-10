@@ -19,8 +19,10 @@ Selaimessa toimiva Three.js-pohjainen, päivänvalossa teksturoitu Helsinki 3D -
 - `src/main.js` vain kokoaa moduulit ja käyttöliittymän. `src/legacy/main-v01.js` + `viewer-v01.html` = alkuperäinen toimiva versio, älä muokkaa.
 - Suorituskyky: `docs/PERFORMANCE.md`. Mittaa (`?bench=all`) ennen optimointeja.
 
-## Helsinki FPS (`fps.html`, `src/fps/`, `server/fps-server.js`)
-Kolmen pelaajan moninpeli-FPS samassa maailmassa. Render-palvelu `helsinkifps` (HOME_PAGE=fps.html).
+## Nordic Combat (`fps.html`, `src/fps/`, `server/fps-server.js`)
+Kolmen pelaajan moninpeli-FPS samassa maailmassa. Render-palvelu `nordiccombat`: REQUIRE_PASSWORD=1 ja GAME_PASSWORD (salaisuus, asetetaan vain Renderissä).
+- Nimi pelaajille näkyvissä paikoissa on Nordic Combat; Helsinki mainitaan vain lisenssin vaatimassa aineistolähteessä (CC BY 4.0).
+- Ohjaus: Välilyönti/hiiri ampuu, E hyppy, 1–7 aseet, Z kiikari; kosketuslaitteilla `ui/Touch.js` (tikku, katseluveto, napit).
 - `physics/WorldCollider.js` BVH (three-mesh-bvh) suoraan piirtomesheihin: säteet ja kapselitörmäys. `player/PlayerController.js` liike.
 - `weapons/defs.js` asevalikoima datana; `WeaponModels.js` ohjelmalliset mallit (staattiset osat yhdistetään); `Viewmodel.js` ADS, rekyyli, animaatiot, kiikarin PiP-suurennos; `WeaponSystem.js` tulitus, osumat, raketit, kranaatit.
 - `fx/Effects.js` partikkelit, räjähdykset; `fx/Marks.js` pysyvät kraatterit/seinäjäljet/kivet siemenluvusta (palvelin tallentaa, myöhään liittyvät saavat listan).

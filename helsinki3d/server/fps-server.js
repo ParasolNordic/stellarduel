@@ -1,4 +1,4 @@
-// Helsinki FPS – moninpelipalvelin (Socket.IO). Huone = nelikirjaiminen koodi, enintään 3 pelaajaa, vapaa liittyminen kesken ottelun.
+// Nordic Combat – moninpelipalvelin (Socket.IO). Huone = nelikirjaiminen koodi, enintään 3 pelaajaa, vapaa liittyminen kesken ottelun.
 // Liike lasketaan pelaajien selaimissa (ampujan näkymä ratkaisee osuman). Palvelin pitää kirjaa terveydestä, kuolemista,
 // pisteistä, räjähdysten alueosumista ja ympäristöön jääneistä jäljistä, jotka lähetetään myös myöhemmin liittyville.
 import QRCode from 'qrcode';
@@ -79,7 +79,7 @@ export function attachFps(io) {
       leave();
       const r = makeRoom(newCode());
       const origin = d && typeof d.origin === 'string' && /^https?:\/\/[^\s]+$/.test(d.origin) ? d.origin : '';
-      const url = origin + '/fps.html?k=' + r.code;
+      const url = origin + '/?k=' + r.code;
       let qr = ''; try { qr = await QRCode.toDataURL(url, { margin: 1, width: 240 }); } catch (e) { /* ilman QR-koodia */ }
       cb({ code: r.code, url, qr });
     });

@@ -1,18 +1,17 @@
 <!doctype html>
 <html lang="fi"><head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Helsinki FPS</title>
-<meta name="description" content="Kolmen pelaajan selainräiskintä oikean Helsingin 3D-kaupunkimallissa.">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="theme-color" content="#0b0f14">
+<title>Nordic Combat</title>
+<meta name="description" content="Kolmen pelaajan selainräiskintä oikeassa kaupunkiympäristössä.">
 <link rel="stylesheet" href="./src/fps/fps.css">
 </head><body>
 <div id="viewport"></div>
 
 <!-- pelinäkymän HUD -->
+<div id="scopeMask" class="ovl"></div><div id="vignette" class="ovl"></div><div id="hurt" class="ovl"></div>
 <div id="hud" class="hidden">
-  <div id="scopeMask"></div>
-  <div id="vignette"></div>
-  <div id="hurt"></div>
   <div id="xh"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><b></b></div>
   <div id="hitmark"><i></i><i></i><i></i><i></i></div>
   <div id="dmgdirs"></div>
@@ -33,7 +32,7 @@
 <!-- aula -->
 <div id="lobby" class="panel-wrap">
   <div class="panel">
-    <div class="brand"><span class="mark">H</span><div><div class="title">HELSINKI <span>FPS</span></div><div class="tag">3 PELAAJAA · OIKEA KAUPUNKI · SELAIMESSA</div></div></div>
+    <div class="brand"><span class="mark">N</span><div><div class="title">NORDIC <span>COMBAT</span></div><div class="tag">3 PELAAJAA · KAUPUNKITAISTELU · SELAIMESSA</div></div></div>
     <div id="lobbyStart">
       <label class="fld"><span>Nimesi</span><input id="name" maxlength="14" autocomplete="off" spellcheck="false" placeholder="PELAAJA"></label>
       <button id="btnCreate" class="primary wide">Luo uusi peli</button>
@@ -49,7 +48,8 @@
     </div>
     <div id="loadbar"><div id="loadfill"></div><span id="loadtxt">Ladataan kaupunkia…</span></div>
     <details class="keys"><summary>Ohjaimet</summary>
-      <div class="grid"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · pidätä hengitystä kiikarilla</span><b>Välilyönti</b><span>hyppy</span><b>Hiiri vasen</b><span>ammu</span><b>Hiiri oikea</b><span>tähtää (pidä)</span><b>R</b><span>lataa</span><b>1–7 / rulla</b><span>vaihda asetta</span><b>Q</b><span>edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Rulla tähdätessä</b><span>kiikarin suurennos 4× / 8×</span><b>Tab</b><span>tilanne</span><b>Esc</b><span>valikko</span></div>
+      <div class="grid"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · pidätä hengitystä kiikarilla</span><b>Välilyönti / hiiri vasen</b><span>ammu</span><b>E</b><span>hyppy</span><b>Hiiri oikea</b><span>tähtää (pidä)</span><b>R</b><span>lataa</span><b>1–7</b><span>vaihda asetta</span><b>Q</b><span>edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos 4× / 8×</span><b>Tab</b><span>tilanne</span><b>Esc</b><span>valikko</span></div>
+      <div class="grid touchkeys"><b>Vasen peukalo</b><span>liiku · vie tikku ylös asti = juokse</span><b>Oikea peukalo</b><span>katsele vetämällä</span><b>Napit</b><span>ammu (voi vetää), tähtää, hyppy, lataa, kranaatti</span><b>Yläpalkki</b><span>vaihda asetta</span></div>
     </details>
     <div class="fine"><button class="linkbtn" id="licLink">© Aineistolähteet ja lisenssit</button></div>
   </div>
@@ -71,10 +71,24 @@
   </div>
 </div>
 
+<!-- kosketusohjaus -->
+<div id="touch" class="hidden">
+  <div id="stickZone"></div><div id="lookZone"></div>
+  <div id="stickBase"><div id="stickKnob"></div></div>
+  <button class="tb" id="tPause" data-act="pause">❚❚</button>
+  <button class="tb big" data-act="fire">AMMU</button>
+  <button class="tb" id="tAds" data-act="ads">TÄHTÄÄ</button>
+  <button class="tb" data-act="jump">HYPPY</button>
+  <button class="tb" data-act="reload">LATAA</button>
+  <button class="tb" data-act="grenade">KRANAATTI</button>
+  <button class="tb hidden" id="tZoom" data-act="zoom">4×</button>
+</div>
+<div id="rotate" class="hidden"><div>⟳</div>Käännä puhelin vaakatasoon</div>
+
 <div id="clickToPlay" class="hidden"><div>KLIKKAA PELATAKSESI</div><small>Esc vapauttaa hiiren</small></div>
 
 <div id="lic" class="panel-wrap hidden"><div class="panel lic"><div class="title small">AINEISTOT JA TEKIJÄNOIKEUDET</div>
-<p>Pelin Helsingin 3D-kaupunkiympäristö perustuu Helsingin kaupungin avoimeen 3D-kaupunkimalliaineistoon.</p>
+<p>Pelin 3D-kaupunkiympäristö perustuu Helsingin kaupungin avoimeen 3D-kaupunkimalliaineistoon.</p>
 <p>Aineiston tuottaja: Helsingin kaupunki<br>Aineisto: Helsingin 3D-kaupunkitietomalli (LoD2) ja ortoilmakuva 2025<br>Lisenssi: Creative Commons Nimeä 4.0 Kansainvälinen (CC BY 4.0)<br>
 Lisenssin ehdot: <a href="https://creativecommons.org/licenses/by/4.0/deed.fi" target="_blank" rel="noopener">creativecommons.org/licenses/by/4.0/deed.fi</a><br>Aineiston lähde: <a href="https://kartta.hel.fi/3d/" target="_blank" rel="noopener">kartta.hel.fi/3d</a></p>
 <p>Alkuperäistä 3D-aineistoa on muokattu ja muunnettu pelikäyttöön soveltuvaksi (tekstuuriatlakset, paikallinen koordinaatisto).</p>

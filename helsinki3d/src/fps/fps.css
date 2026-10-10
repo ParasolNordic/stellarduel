@@ -71,9 +71,9 @@ input[type=range] { padding: 0; width: 100%; accent-color: var(--acc); }
 #hitmark.kill i { background: #ff2a1a; width: 14px; }
 #dmgdirs { position: absolute; left: 50%; top: 50%; }
 .dmgdir { position: absolute; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%; border-top: 5px solid rgba(255, 50, 40, 0.85); filter: drop-shadow(0 0 6px rgba(255, 0, 0, 0.6)); transition: opacity 1.2s; transform-origin: 50% 50%; }
-#vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(120, 0, 0, 0.55) 100%); opacity: 0; transition: opacity 0.3s; }
-#hurt { position: absolute; inset: 0; background: rgba(160, 0, 0, 0.28); opacity: 0; }
-#scopeMask { position: absolute; inset: 0; opacity: 0; }
+#vignette { position: fixed; inset: 0; background: radial-gradient(ellipse at center, transparent 55%, rgba(120, 0, 0, 0.55) 100%); opacity: 0; transition: opacity 0.3s; }
+#hurt { position: fixed; inset: 0; background: rgba(160, 0, 0, 0.28); opacity: 0; }
+#scopeMask { position: fixed; inset: 0; opacity: 0; }
 #topbar { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; }
 #timer { font-weight: 800; font-size: 18px; letter-spacing: 0.08em; background: rgba(10, 14, 20, 0.55); padding: 4px 12px; border-radius: 6px; }
 #lead { display: flex; gap: 6px; }
@@ -122,3 +122,61 @@ tr.me td { color: var(--acc); }
 #perf { position: absolute; left: 12px; top: 12px; font: 11px/1.4 ui-monospace, Menlo, monospace; background: rgba(0, 0, 0, 0.55); padding: 6px 9px; border-radius: 6px; white-space: pre; text-shadow: none; }
 @media (max-width: 1150px) { #slots { bottom: auto; top: 50px; } }
 @media (max-width: 700px) { #hp .bar { width: 110px; } #slots { display: none; } .big { font-size: 28px; } }
+
+/* ---------- kosketusohjaus ja pienet näytöt ---------- */
+.touchkeys { display: none !important; }
+body.touch .keys .grid:not(.touchkeys) { display: none; }
+body.touch .touchkeys { display: grid !important; }
+#touch { position: fixed; inset: 0; z-index: 12; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+#stickZone { position: absolute; left: 0; top: 0; bottom: 0; width: 42%; }
+#lookZone { position: absolute; right: 0; top: 0; bottom: 0; width: 58%; }
+#stickBase { position: absolute; left: 0; top: 0; width: 116px; height: 116px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.35); background: rgba(10, 14, 20, 0.25); pointer-events: none; opacity: 0;
+  transform: translate(calc(70px + env(safe-area-inset-left)), calc(100vh - 200px)); transition: opacity 0.15s; }
+#stickBase.on { opacity: 1; transition: none; }
+#stickKnob { position: absolute; left: 33px; top: 33px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255, 255, 255, 0.55); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+.tb { position: absolute; width: 62px; height: 62px; border-radius: 50%; padding: 0; font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: #fff;
+  background: rgba(10, 14, 20, 0.42); border: 2px solid rgba(255, 255, 255, 0.35); touch-action: none; -webkit-tap-highlight-color: transparent; }
+.tb.down, .tb.on { background: rgba(255, 179, 71, 0.55); border-color: var(--acc); }
+.tb.big { width: 92px; height: 92px; font-size: 13px; right: calc(26px + env(safe-area-inset-right)); bottom: 34px; border-color: rgba(255, 120, 90, 0.7); background: rgba(160, 40, 20, 0.35); }
+#tAds { right: calc(136px + env(safe-area-inset-right)); bottom: 50px; width: 70px; height: 70px; }
+.tb[data-act=jump] { right: calc(40px + env(safe-area-inset-right)); bottom: 142px; }
+.tb[data-act=reload] { right: calc(118px + env(safe-area-inset-right)); bottom: 136px; }
+.tb[data-act=grenade] { right: calc(222px + env(safe-area-inset-right)); bottom: 30px; font-size: 8px; }
+#tZoom { right: calc(196px + env(safe-area-inset-right)); bottom: 120px; width: 50px; height: 50px; font-size: 13px; }
+#tPause { left: calc(12px + env(safe-area-inset-left)); top: 10px; width: 42px; height: 42px; font-size: 12px; border-radius: 10px; }
+#rotate { position: fixed; inset: 0; z-index: 40; background: #0b0f14; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; font-size: 16px; letter-spacing: 0.08em; }
+#rotate div { font-size: 54px; }
+@media (orientation: portrait) { body.touch.playing #rotate { display: flex !important; } }
+
+/* HUD kosketuslaitteella: kulmat vapaiksi peukaloille */
+body.touch #hp { left: calc(62px + env(safe-area-inset-left)); top: 10px; bottom: auto; padding: 6px 10px; }
+body.touch #hp .bar { width: 90px; }
+body.touch #hp .lbl { display: none; }
+body.touch #hpnum { font-size: 16px; min-width: 30px; }
+body.touch #ammo { top: 10px; bottom: auto; right: calc(12px + env(safe-area-inset-right)); padding: 6px 12px; min-width: 120px; }
+body.touch #mag { font-size: 24px; }
+body.touch #wname, body.touch #nades, body.touch #zoomlbl { font-size: 9px; }
+body.touch #topbar { top: 8px; }
+body.touch #timer { font-size: 14px; }
+body.touch #lead span { font-size: 11px; padding: 3px 7px; }
+body.touch #slots { display: flex !important; top: 44px; bottom: auto; pointer-events: auto; z-index: 13; }
+body.touch #slots div { font-size: 10px; padding: 7px 8px; }
+body.touch #feed { top: 96px; right: calc(12px + env(safe-area-inset-right)); font-size: 10px; }
+body.touch #hint { bottom: auto; top: 30%; }
+body.touch #center { top: 24%; font-size: 16px; }
+body.touch .big { font-size: 26px; }
+body.touch #board, body.touch #over { top: 12%; }
+@media (max-height: 520px) {
+  .panel { padding: 14px 16px; }
+  .brand { margin-bottom: 10px; }
+  .mark { width: 38px; height: 38px; font-size: 20px; }
+  .title { font-size: 20px; }
+  .fld { margin: 8px 0; }
+  .share img { width: 86px; height: 86px; }
+  .share .code { font-size: 24px; }
+  button.wide { margin-top: 6px; padding: 8px 12px; }
+}
+@media (max-width: 560px) { .share { flex-direction: column; align-items: flex-start; } .panel { padding: 16px; } }
+body.touch #hud { z-index: 14; }
+.ovl { pointer-events: none; z-index: 9; }
+.tb.big { font-size: 12px; }

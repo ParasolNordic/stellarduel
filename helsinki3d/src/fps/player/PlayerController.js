@@ -13,6 +13,7 @@ export class PlayerController {
     this.yaw = 0; this.pitch = 0;
     this.onGround = false; this.sprinting = false; this.moving = 0;
     this.keys = new Set();
+    this.analog = null; this.sprintTouch = false;     // kosketusohjaus: { x: sivulle, y: eteen } −1..1
     this.speedMul = 1; this.ads = 0; this.canSprint = true;
     this.bob = 0; this.landKick = 0; this.airTime = 0;
     this.onLand = null; this.onStep = null;
@@ -28,12 +29,14 @@ export class PlayerController {
     const k = this.keys;
     let f = 0, s = 0;
     if (active) { if (k.has('KeyW') || k.has('ArrowUp')) f++; if (k.has('KeyS') || k.has('ArrowDown')) f--; if (k.has('KeyD') || k.has('ArrowRight')) s++; if (k.has('KeyA') || k.has('ArrowLeft')) s--; }
-    const wantSprint = active && (k.has('ShiftLeft') || k.has('ShiftRight')) && f > 0 && this.canSprint && this.ads < 0.3;
+    let mag = 1;
+    if (active && this.analog) { f = this.analog.y; s = this.analog.x; mag = Math.min(1, Math.hypot(f, s)); }
+    const wantSprint = active && (k.has('ShiftLeft') || k.has('ShiftRight') || this.sprintTouch) && f > 0 && this.canSprint && this.ads < 0.3;
     this.sprinting = wantSprint && this.onGround ? true : (this.sprinting && wantSprint);
     const target = (this.sprinting ? SPRINT : THREE.MathUtils.lerp(WALK, ADS, this.ads)) * this.speedMul;
     const sy = Math.sin(this.yaw), cy = Math.cos(this.yaw);
     const w = this._wish.set(-sy * f + cy * s, 0, -cy * f - sy * s);
-    if (w.lengthSq() > 0) w.normalize().multiplyScalar(target);
+    if (w.lengthSq() > 0) w.normalize().multiplyScalar(target * mag);
     const acc = (this.onGround ? ACC_G : ACC_A) * dt;
     const dx = w.x - this.vel.x, dz = w.z - this.vel.z, dl = Math.hypot(dx, dz);
     if (dl > 0) { const m = Math.min(1, acc / dl); this.vel.x += dx * m; this.vel.z += dz * m; }

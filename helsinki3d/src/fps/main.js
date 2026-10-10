@@ -1,4 +1,4 @@
-// Helsinki FPS – kokoaja. Käyttää Helsinki 3D:n moduuleja sellaisenaan (renderöijä, laatutasot, kaupunki,
+// Nordic Combat – kokoaja. Käyttää kaupunkimaailman moduuleja sellaisenaan (renderöijä, laatutasot, kaupunki,
 // valaistus) ja lisää niiden päälle pelin: liike ja törmäykset, aseet, efektit, pysyvät jäljet, moninpeli, HUD.
 import * as THREE from 'three';
 import { io } from 'socket.io-client';
@@ -17,11 +17,17 @@ import { Marks } from './fx/Marks.js';
 import { Avatars } from './avatars/Avatars.js';
 import { Sound } from './audio/Sound.js';
 import { Hud } from './ui/Hud.js';
+import { TouchControls } from './ui/Touch.js';
+import './ui/noZoom.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const store = { get: (k, d) => { try { const v = localStorage.getItem('h3dfps.' + k); return v === null ? d : v; } catch (e) { return d; } }, set: (k, v) => { try { localStorage.setItem('h3dfps.' + k, v); } catch (e) { /* ei tallennusta */ } } };
 const RESPAWN = 3.0;
+// kosketuslaite: ensisijainen osoitin on sormi (puhelin, tabletti); ?touch=1 pakottaa testejä varten
+const isTouch = params.get('touch') === '1' || (matchMedia('(pointer: coarse)').matches && navigator.maxTouchPoints > 0);
+if (isTouch) document.body.classList.add('touch');
+let touch = null;
 
 // ---------- perusosat ----------
 const renderer = createRenderer($('viewport'));
@@ -83,6 +89,18 @@ async function load() {
   player.onStep = s => sound.step(s);
   applyQuality(qualityId);
   computeSpawnCells();
+  touch = new TouchControls({ root: $('touch'), player, weapons,
+    onLook: (dx, dy) => { lookDx += dx * 2.3; lookDy += dy * 2.3; },
+    actions: {
+      jump: () => player.jump(),
+      reload: () => me.alive && weapons.reload(),
+      grenade: () => me.alive && weapons.throwGrenade(),
+      ads: () => { weapons.adsHeld = !weapons.adsHeld; $('tAds').classList.toggle('on', weapons.adsHeld); },
+      zoom: () => weapons.cycleZoom(),
+      pause: () => pauseGame(),
+    } });
+  // asepaikat yläpalkissa: napautus vaihtaa aseen (kosketus)
+  document.querySelectorAll('#slots div').forEach(el => el.addEventListener('pointerdown', e => { e.preventDefault(); if (me.alive) weapons.select(+el.dataset.i); }));
   // esikatselukuva aulan taakse
   const c = world.center; camera.position.set(c.x + 90, c.y + 55, c.z + 120); camera.lookAt(c.x, c.y, c.z);
   progress(`Valmis · ${spawnCells.length} syntymäpistettä · törmäyspuu ${Math.round(collider.buildMs)} ms`, 1);
@@ -140,7 +158,7 @@ function join(code) {
     if (!r || r.err) return lobbyMsg(r ? r.err : 'Yhteysvirhe', true);
     me.id = r.id; me.name = r.name; me.color = r.color; me.alive = false; me.deadT = RESPAWN;
     weapons.myId = r.id; game.code = r.code; game.t = r.t || 0;
-    if (!game.url) game.url = location.origin + '/fps.html?k=' + r.code;
+    if (!game.url) game.url = location.origin + '/?k=' + r.code;
     marks.clear(); for (const m of r.marks || []) marks.add(m);
     history.replaceState(null, '', '?k=' + r.code + (params.get('q') ? '&q=' + params.get('q') : ''));
     $('lobbyStart').classList.add('hidden'); $('lobbyShare').classList.remove('hidden');
@@ -155,9 +173,16 @@ function renderPlayersList() {
 }
 function startPlaying() {
   game.playing = true;
+  document.body.classList.add('playing');
   $('lobby').classList.add('hidden'); hud.show(true);
-  lockPointer();
+  if (isTouch) {
+    $('touch').classList.remove('hidden'); game.locked = true;
+    // Android: koko näyttö ja vaakasuunta (iPhone ei tue, ohitetaan hiljaa)
+    try { const r = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }); r?.then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {}); } catch (e) { /* ei tukea */ }
+  } else lockPointer();
 }
+function pauseGame() { game.locked = false; touch?.reset(); weapons.adsHeld = false; $('tAds').classList.remove('on'); $('menu').classList.remove('hidden'); }
+function resumeGame() { $('menu').classList.add('hidden'); if (isTouch) game.locked = true; else lockPointer(); }
 
 // ---------- hiiri ja näppäimet ----------
 function lockPointer() {
@@ -165,46 +190,52 @@ function lockPointer() {
   try { const p = el.requestPointerLock({ unadjustedMovement: true }); if (p && p.catch) p.catch(() => el.requestPointerLock()); } catch (e) { el.requestPointerLock(); }
 }
 document.addEventListener('pointerlockchange', () => {
+  if (isTouch) return;
   game.locked = document.pointerLockElement === renderer.domElement;
   if (!game.playing) return;
   $('menu').classList.toggle('hidden', game.locked);
   $('clickToPlay').classList.add('hidden');
   if (!game.locked) { weapons.trigger = false; weapons.adsHeld = false; player.keys.clear(); }
 });
-document.addEventListener('pointerlockerror', () => { if (game.playing) $('clickToPlay').classList.remove('hidden'); });
+document.addEventListener('pointerlockerror', () => { if (game.playing && !isTouch) $('clickToPlay').classList.remove('hidden'); });
 $('clickToPlay').addEventListener('click', () => lockPointer());
-renderer.domElement.addEventListener('click', () => { if (game.playing && !game.locked) lockPointer(); });
-$('btnResume').addEventListener('click', () => { $('menu').classList.add('hidden'); lockPointer(); });
+renderer.domElement.addEventListener('click', () => { if (game.playing && !game.locked && !isTouch) lockPointer(); });
+$('btnResume').addEventListener('click', resumeGame);
 $('btnLeave').addEventListener('click', () => location.href = location.pathname);
 let lookDx = 0, lookDy = 0;
 document.addEventListener('mousemove', e => {
-  if (!game.locked) return;
+  if (!game.locked || isTouch) return;
   const mx = e.movementX || 0, my = e.movementY || 0;
   if (Math.abs(mx) > 500 || Math.abs(my) > 500) return;           // selainten satunnaiset hyppäykset
   lookDx += mx; lookDy += my;
 });
 document.addEventListener('mousedown', e => {
-  if (!game.locked) return;
+  if (!game.locked || isTouch) return;
   if (e.button === 0) { weapons.trigger = true; weapons.pressed = true; }
   if (e.button === 2) weapons.adsHeld = true;
 });
-document.addEventListener('mouseup', e => { if (e.button === 0) weapons.trigger = false; if (e.button === 2) weapons.adsHeld = false; });
+document.addEventListener('mouseup', e => { if (isTouch) return; if (e.button === 0 && !player?.keys.has('Space')) weapons.trigger = false; if (e.button === 2) weapons.adsHeld = false; });
 document.addEventListener('contextmenu', e => { if (game.playing) e.preventDefault(); });
-document.addEventListener('wheel', e => { if (!game.locked || !me.alive) return; if (!weapons.wheelZoom(e.deltaY)) weapons.next(e.deltaY > 0 ? 1 : -1); }, { passive: true });
+// rulla vain kiikarin suurennokseen (ei aseen vaihtoa – Macin kosketuslevyllä liian herkkä)
+document.addEventListener('wheel', e => { if (game.locked && me.alive && Math.abs(e.deltaY) > 4) weapons.wheelZoom(e.deltaY); }, { passive: true });
 addEventListener('keydown', e => {
   if (/INPUT|TEXTAREA/.test(e.target.tagName)) return;
   if (e.code === 'KeyF' && !e.repeat) $('perf').classList.toggle('hidden');
   if (e.code === 'Tab') { e.preventDefault(); $('board').classList.remove('hidden'); }
   if (!game.locked) return;
+  if (e.code === 'Space') e.preventDefault();
   player.keys.add(e.code);
   if (e.repeat) return;
-  if (e.code === 'Space') player.jump();
+  if (e.code === 'KeyE') player.jump();
   if (!me.alive) return;
+  if (e.code === 'Space') { weapons.trigger = true; weapons.pressed = true; }
   if (e.code === 'KeyR') weapons.reload();
   if (e.code === 'KeyG') weapons.throwGrenade();
   if (e.code === 'KeyQ') weapons.select(weapons.prev);
+  if (e.code === 'KeyZ') weapons.cycleZoom();
   const n = /^Digit([1-7])$/.exec(e.code); if (n) weapons.select(+n[1] - 1);
 });
+addEventListener('keyup', e => { if (e.code === 'Space' && weapons) weapons.trigger = false; });
 addEventListener('keyup', e => { player?.keys.delete(e.code); if (e.code === 'Tab') $('board').classList.add('hidden'); });
 addEventListener('blur', () => { player?.keys.clear(); if (weapons) weapons.trigger = false; });
 
@@ -402,6 +433,12 @@ function frame() {
     hud.timer(game.t, game.timeLimit);
     $('protect').classList.toggle('hidden', !(me.alive && me.protect));
     hud.update(rawDt);
+    if (isTouch) {
+      const sn = def.sight === 'scope';
+      if (sn !== !$('tZoom').classList.contains('hidden')) $('tZoom').classList.toggle('hidden', !sn);
+      if (sn) hud.set('tZoom', weapons.zoom + '×');
+      if (!me.alive && weapons.adsHeld) { weapons.adsHeld = false; $('tAds').classList.remove('on'); }
+    }
   }
 
   // piirto: kaupunki → (kiikarin kuva) → asekuva
