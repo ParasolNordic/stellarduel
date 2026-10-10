@@ -5,6 +5,18 @@ import * as THREE from 'three';
 export const EYE = 1.62, HEIGHT = 1.8, RADIUS = 0.34;
 const WALK = 5.4, SPRINT = 8.4, ADS = 3.1, GRAV = 22, JUMP = 7.2, ACC_G = 70, ACC_A = 14;
 
+// etumerkillinen etäisyys monikulmion reunaan: positiivinen sisällä, negatiivinen ulkona
+function polyDist(P, x, z) {
+  let inside = false, dmin = Infinity;
+  for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+    const [xi, zi] = P[i], [xj, zj] = P[j];
+    if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+    const dx = xj - xi, dz = zj - zi, t = Math.max(0, Math.min(1, ((x - xi) * dx + (z - zi) * dz) / (dx * dx + dz * dz || 1)));
+    dmin = Math.min(dmin, Math.hypot(x - (xi + dx * t), z - (zi + dz * t)));
+  }
+  return inside ? dmin : -dmin;
+}
+
 export class PlayerController {
   constructor(collider, world) {
     this.collider = collider; this.world = world;
@@ -22,10 +34,12 @@ export class PlayerController {
     this.lim = { x0: b.min.x + 3, x1: b.max.x - 3, z0: b.min.z + 3, z1: b.max.z - 3 };
     // vientialueen monikulmio (jos manifestissa): maastoa on vain sen sisällä, joten liike rajataan 3 m reunasta
     this.poly = world.manifest && world.manifest.area_polygon_local_xz || null;
+    this.water = world.manifest && world.manifest.water_polygons_local_xz || [];   // meri: ei kävelyä veden päällä
     this.lastGround = new THREE.Vector3();
   }
   // onko vaakapiste pelialueella (monikulmion sisällä vähintään margin metrin päässä reunasta)
-  validXZ(x, z, margin = 3) {
+  validXZ(x, z, margin = 3, waterMargin = margin > 3 ? 3 : 0.4) {
+    for (const W of this.water) if (polyDist(W, x, z) > -waterMargin) return false;   // veden päällä tai rannan rajalla
     const P = this.poly; if (!P) return true;
     let inside = false, dmin = Infinity;
     for (let i = 0, j = P.length - 1; i < P.length; j = i++) {

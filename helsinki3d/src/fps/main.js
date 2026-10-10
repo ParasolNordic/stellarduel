@@ -22,6 +22,7 @@ import './ui/noZoom.js';
 import { renderTopView } from './ui/MiniMap.js';
 import { Objectives, MapScreen } from './world/Objectives.js';
 import { Chat } from './ui/Chat.js';
+import { addWater } from './world/Water.js';
 import { COLORS, COLOR_HEX, MAPS, MAX_PLAYERS, KILL_LIMIT, colorName } from './shared.js';
 
 const $ = id => document.getElementById(id);
@@ -85,6 +86,7 @@ async function load() {
   await new Promise(r => setTimeout(r, 20));
   lighting.fitTo(world.bounds);
   world.addSurroundings();
+  addWater(scene, world);                          // merialueet (kartta 2)
   collider = new WorldCollider(world);
   player = new PlayerController(collider, world);
   fx = new Effects(scene, world);
@@ -129,7 +131,7 @@ async function load() {
 function computeSpawnCells() {
   const b = world.bounds, out = [];
   for (let x = b.min.x + 10; x < b.max.x - 10; x += 3) for (let z = b.min.z + 10; z < b.max.z - 10; z += 3) {
-    const g = world.heightAt(x, z); if (g === null || !player.validXZ(x, z, 6)) continue;
+    const g = world.heightAt(x, z); if (g === null || !player.validXZ(x, z, 6, 3)) continue;
     let ok = true;
     for (let k = 0; k < 8 && ok; k++) { const a = k / 8 * Math.PI * 2; const sx = x + Math.cos(a) * 2.2, sz = z + Math.sin(a) * 2.2; const s = world.surfaceAt(sx, sz), gg = world.heightAt(sx, sz); if (s === null || gg === null || s - gg > 0.4 || Math.abs(gg - g) > 0.8) ok = false; }
     if (!ok || world.surfaceAt(x, z) - g > 0.3) continue;

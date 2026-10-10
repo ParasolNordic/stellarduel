@@ -25,6 +25,7 @@ Kolmen pelaajan moninpeli-FPS samassa maailmassa. Render-palvelu `nordiccombat`:
 - Ohjaus: Välilyönti/hiiri ampuu, E hyppy, 1–7 aseet, Z kiikari, T tiimiviesti, Tab tilanne + näppäimet; kosketuslaitteilla `ui/Touch.js`.
 - Kartat: `/` = kartta 1 (`public/world`, nimiavaruus /fps), `/kartta2` = kartta 2 (`public/world2`, /fps2). 1–6 pelaajaa.
 - `shared.js` (palvelin + selain): paitavärit (sama väri = tiimi, ei omien tulitusta, tiimin kaadot 25), tarkastuspaikat ja laatikoiden mahdolliset paikat karttakohtaisesti.
+- Kartta 2:n meri: `water_polygons_local_xz` manifestissa (käyttäjän merkitsemä, kohdistettu ilmakuvaan) → `world/Water.js` vedenpinta, `PlayerController.validXZ` estää kävelyn.
 - `world/Objectives.js` tarkastuspaikat (karttanäyttö, `ui/MiniMap.js` piirtää yläkuvan latauksessa) ja ammuslaatikot; `ui/Chat.js` tiimiradio (LCD).
 - `physics/WorldCollider.js` BVH (three-mesh-bvh) suoraan piirtomesheihin: säteet ja kapselitörmäys. `player/PlayerController.js` liike.
 - `weapons/defs.js` asevalikoima datana; `WeaponModels.js` ohjelmalliset mallit (staattiset osat yhdistetään); `Viewmodel.js` ADS, rekyyli, animaatiot, kiikarin PiP-suurennos; `WeaponSystem.js` tulitus, osumat, raketit, kranaatit.
