@@ -36,7 +36,23 @@ Mittauksen perusteella tehty muutos: Low-tasolla fysikaalinen taivas ja ympärö
 
 Medium- ja High-tasoilla (varjot 2048/4096, IBL) SwiftShader piirsi alle 2 ruutua sekunnissa, joten luotettavaa vertailua ei saatu.
 
-## 3. Mittaus omalla laitteella
+## 3. Ensimmäinen mittaus oikealla laitteella (10.10.2026)
+
+Laite: Apple GPU (Mac, Safari/WebKit). Mittausajo "Mittaa kaikki tasot", 4 s / näkymä.
+
+| Taso | Karttanäkymä | Yläviisto | Katutaso | p95 | Piirtokutsut |
+|---|---|---|---|---|---|
+| Low | 59,4 FPS · 16,8 ms | 60,2 · 16,6 ms | 59,1 · 16,9 ms | 18–19 ms | 6 |
+| Medium | 59,7 · 16,8 ms | 60,1 · 16,6 ms | 59,9 · 16,7 ms | 17–18 ms | 7 |
+| High | 59,5 · 16,8 ms | 59,9 · 16,7 ms | 60,2 · 16,6 ms | 17–19 ms | 7 |
+
+Johtopäätökset:
+- Kaikki tasot osuvat näytön virkistystaajuuteen (60 Hz, ~16,7 ms). Selain ei piirrä tätä nopeammin, joten ero tasojen välillä ei näy: näytönohjaimella on varaa, mutta varan määrää ei voi mitata selaimessa (WebKit ei tarjoa GPU-ajastimia).
+- 95. persentiili 17–19 ms: ei nykimistä, ei raskaita yksittäisiä ruutuja edes High-tasolla (4096-varjot, 4 × 4096² tekstuurit).
+- **Lisäoptimointia ei tarvita työpöydällä.** Oletustaso työpöydällä nostettiin Mediumista Highiin.
+- Seuraava mittaus: puhelin (iPhone/Android), jossa muisti (High ~340 Mt tekstuureja + 64 Mt varjokartta) on todennäköisempi rajoite kuin ruutunopeus.
+
+## 4. Mittaus omalla laitteella
 
 1. Avaa sivu ja odota latauksen loppuun.
 2. Valitse sivupaneelista **Suorituskyky → Mittaa kaikki tasot**. Ajo kestää noin 40 s, eikä hiirtä tai näppäimiä kannata käyttää sen aikana.
@@ -49,7 +65,7 @@ Osoiteparametrit:
 
 **F-näppäin** näyttää jatkuvan mittarin: FPS, ruutuajan keskiarvo ja 95. persentiili, piirtokutsut, kolmiot ja tekstuurien määrä.
 
-## 4. Seuraavat optimoinnit (vasta oikeiden laitemittausten jälkeen)
+## 5. Seuraavat optimoinnit (vasta oikeiden laitemittausten jälkeen)
 
 - Jos Medium tai High jää alle 60 FPS:n työpöydällä, ensimmäinen kokeilu on varjokartan päivitys vain auringon liikkuessa (`shadowMap.autoUpdate = false`). Maailma on staattinen.
 - Jos puhelimen muisti loppuu, KTX2/Basis-pakatut tekstuurit vähentävät GPU-muistia noin 4–6-kertaisesti. Tämä vaatii muunnoksen `build_world.py`-ketjuun.

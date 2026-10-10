@@ -38,6 +38,6 @@ export function initialQuality() {
   if (url && QUALITY_PRESETS[url]) return url;
   try { const s = localStorage.getItem(KEY); if (s && QUALITY_PRESETS[s]) return s; } catch (e) { /* ei tallennusta */ }
   const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-  return coarse ? 'low' : 'medium';
+  return coarse ? 'low' : 'high';                 // työpöytä: mittauksen mukaan High pysyy 60 FPS:ssä (Apple GPU)
 }
 export function saveQuality(id) { try { localStorage.setItem(KEY, id); } catch (e) { /* ei tallennusta */ } }
