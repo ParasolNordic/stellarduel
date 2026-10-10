@@ -19,6 +19,14 @@ Selaimessa toimiva Three.js-pohjainen, päivänvalossa teksturoitu Helsinki 3D -
 - `src/main.js` vain kokoaa moduulit ja käyttöliittymän. `src/legacy/main-v01.js` + `viewer-v01.html` = alkuperäinen toimiva versio, älä muokkaa.
 - Suorituskyky: `docs/PERFORMANCE.md`. Mittaa (`?bench=all`) ennen optimointeja.
 
+## Helsinki FPS (`fps.html`, `src/fps/`, `server/fps-server.js`)
+Kolmen pelaajan moninpeli-FPS samassa maailmassa. Render-palvelu `helsinkifps` (HOME_PAGE=fps.html).
+- `physics/WorldCollider.js` BVH (three-mesh-bvh) suoraan piirtomesheihin: säteet ja kapselitörmäys. `player/PlayerController.js` liike.
+- `weapons/defs.js` asevalikoima datana; `WeaponModels.js` ohjelmalliset mallit (staattiset osat yhdistetään); `Viewmodel.js` ADS, rekyyli, animaatiot, kiikarin PiP-suurennos; `WeaponSystem.js` tulitus, osumat, raketit, kranaatit.
+- `fx/Effects.js` partikkelit, räjähdykset; `fx/Marks.js` pysyvät kraatterit/seinäjäljet/kivet siemenluvusta (palvelin tallentaa, myöhään liittyvät saavat listan).
+- Verkko: liike ja osumat ampujan selaimessa, palvelin hoitaa terveyden, kuolemat, pisteet, alueosuman ja jäljet.
+- Testaus: `?q=low&pr=0.3` (pieni piirtotarkkuus headless-selaimelle), `window.__FPS`.
+
 ## Koordinaatit
 Lähde EPSG:3879, yksikkö metri. Pelin x = easting − origin_easting, y = alkuperäinen korkeus, z = −(northing − origin_northing). Origo luetaan manifestista. Rakennukset ja maasto on jo kohdistettu **samaan** lokaaliin origoonsa; älä siirrä niitä erikseen.
 

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="fi"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Helsinki FPS</title>
+<meta name="description" content="Kolmen pelaajan selainräiskintä oikean Helsingin 3D-kaupunkimallissa.">
+<link rel="stylesheet" href="./src/fps/fps.css">
+</head><body>
+<div id="viewport"></div>
+
+<!-- pelinäkymän HUD -->
+<div id="hud" class="hidden">
+  <div id="scopeMask"></div>
+  <div id="vignette"></div>
+  <div id="hurt"></div>
+  <div id="xh"><i class="t"></i><i class="b"></i><i class="l"></i><i class="r"></i><b></b></div>
+  <div id="hitmark"><i></i><i></i><i></i><i></i></div>
+  <div id="dmgdirs"></div>
+  <div id="topbar"><div id="timer">10:00</div><div id="lead"></div></div>
+  <div id="feed"></div>
+  <div id="center"></div>
+  <div id="protect" class="hidden">SYNTYMÄSUOJA</div>
+  <div id="hp"><div class="lbl">TERVEYS</div><div class="bar"><div id="hpfill"></div></div><div id="hpnum">100</div></div>
+  <div id="ammo"><div id="wname">—</div><div class="row"><span id="mag">30</span><span id="res">/ ∞</span></div><div id="nades"></div><div id="zoomlbl"></div></div>
+  <div id="slots"></div>
+  <div id="hint"></div>
+  <div id="board" class="hidden"><h3>TILANNE <span id="bcode"></span></h3><table><thead><tr><th></th><th>PELAAJA</th><th>KAADOT</th><th>KUOLEMAT</th></tr></thead><tbody id="brows"></tbody></table><p class="sub" id="bsub"></p></div>
+  <div id="death" class="hidden"><div class="big">KAADUIT</div><div id="killer"></div><div id="respawn"></div></div>
+  <div id="over" class="hidden"><div class="big" id="overWhy"></div><table><tbody id="overRows"></tbody></table><p class="sub">Uusi ottelu alkaa hetken kuluttua…</p></div>
+  <div id="perf" class="hidden"></div>
+</div>
+
+<!-- aula -->
+<div id="lobby" class="panel-wrap">
+  <div class="panel">
+    <div class="brand"><span class="mark">H</span><div><div class="title">HELSINKI <span>FPS</span></div><div class="tag">3 PELAAJAA · OIKEA KAUPUNKI · SELAIMESSA</div></div></div>
+    <div id="lobbyStart">
+      <label class="fld"><span>Nimesi</span><input id="name" maxlength="14" autocomplete="off" spellcheck="false" placeholder="PELAAJA"></label>
+      <button id="btnCreate" class="primary wide">Luo uusi peli</button>
+      <div class="or">tai liity koodilla</div>
+      <div class="joinrow"><input id="code" maxlength="4" autocomplete="off" spellcheck="false" placeholder="KOODI"><button id="btnJoin">Liity</button></div>
+      <p id="lobbyMsg" class="msg"></p>
+    </div>
+    <div id="lobbyShare" class="hidden">
+      <div class="share"><img id="qr" alt="QR-koodi"><div><div class="lbl">PELIN KOODI</div><div id="shareCode" class="code">····</div><div class="lbl">LINKKI</div><div id="shareUrl" class="url"></div><button id="btnCopy" class="small">Kopioi linkki</button></div></div>
+      <div id="players" class="players"></div>
+      <button id="btnPlay" class="primary wide">Pelaa</button>
+      <p class="msg">Muut voivat liittyä milloin tahansa ottelun aikana. Ensimmäinen 15 kaatoon tai eniten kaatoja 10 minuutissa voittaa.</p>
+    </div>
+    <div id="loadbar"><div id="loadfill"></div><span id="loadtxt">Ladataan kaupunkia…</span></div>
+    <details class="keys"><summary>Ohjaimet</summary>
+      <div class="grid"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · pidätä hengitystä kiikarilla</span><b>Välilyönti</b><span>hyppy</span><b>Hiiri vasen</b><span>ammu</span><b>Hiiri oikea</b><span>tähtää (pidä)</span><b>R</b><span>lataa</span><b>1–7 / rulla</b><span>vaihda asetta</span><b>Q</b><span>edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Rulla tähdätessä</b><span>kiikarin suurennos 4× / 8×</span><b>Tab</b><span>tilanne</span><b>Esc</b><span>valikko</span></div>
+    </details>
+    <div class="fine"><button class="linkbtn" id="licLink">© Aineistolähteet ja lisenssit</button></div>
+  </div>
+</div>
+
+<!-- tauko / asetukset -->
+<div id="menu" class="panel-wrap hidden">
+  <div class="panel">
+    <div class="title small">TAUKO</div>
+    <button id="btnResume" class="primary wide">Jatka peliä</button>
+    <label class="fld"><span>Hiiren herkkyys <output id="sensV"></output></span><input type="range" id="sens" min="0.2" max="3" step="0.05" value="1"></label>
+    <label class="fld"><span>Tähtäyksen herkkyys <output id="adsV"></output></span><input type="range" id="adsSens" min="0.3" max="1.5" step="0.05" value="1"></label>
+    <label class="fld"><span>Näkökenttä <output id="fovV"></output></span><input type="range" id="fov" min="65" max="95" step="1" value="78"></label>
+    <label class="fld"><span>Äänenvoimakkuus <output id="volV"></output></span><input type="range" id="vol" min="0" max="1" step="0.05" value="0.8"></label>
+    <div class="fld"><span>Grafiikka</span><div class="seg"><button data-q="low">Low</button><button data-q="medium">Medium</button><button data-q="high">High</button></div></div>
+    <div id="menuShare" class="msg"></div>
+    <button id="btnLeave" class="wide">Poistu aulaan</button>
+    <div class="fine"><button class="linkbtn" id="licLink2">© Aineistolähteet ja lisenssit</button> · F = suorituskykymittari</div>
+  </div>
+</div>
+
+<div id="clickToPlay" class="hidden"><div>KLIKKAA PELATAKSESI</div><small>Esc vapauttaa hiiren</small></div>
+
+<div id="lic" class="panel-wrap hidden"><div class="panel lic"><div class="title small">AINEISTOT JA TEKIJÄNOIKEUDET</div>
+<p>Pelin Helsingin 3D-kaupunkiympäristö perustuu Helsingin kaupungin avoimeen 3D-kaupunkimalliaineistoon.</p>
+<p>Aineiston tuottaja: Helsingin kaupunki<br>Aineisto: Helsingin 3D-kaupunkitietomalli (LoD2) ja ortoilmakuva 2025<br>Lisenssi: Creative Commons Nimeä 4.0 Kansainvälinen (CC BY 4.0)<br>
+Lisenssin ehdot: <a href="https://creativecommons.org/licenses/by/4.0/deed.fi" target="_blank" rel="noopener">creativecommons.org/licenses/by/4.0/deed.fi</a><br>Aineiston lähde: <a href="https://kartta.hel.fi/3d/" target="_blank" rel="noopener">kartta.hel.fi/3d</a></p>
+<p>Alkuperäistä 3D-aineistoa on muokattu ja muunnettu pelikäyttöön soveltuvaksi (tekstuuriatlakset, paikallinen koordinaatisto).</p>
+<p>Peli on itsenäinen tuotanto, eikä Helsingin kaupunki ole sen kehittäjä, julkaisija tai sponsori.</p>
+<button id="licClose" class="wide">Sulje</button></div></div>
+
+<script type="module" src="./src/fps/main.js"></script>
+</body></html>
