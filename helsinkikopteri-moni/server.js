@@ -11,6 +11,7 @@ const KY = require('./public/kyhteinen.js');
 const { RD, GUN } = KY;
 
 const app = express();
+require('../norobots.js')(app);                  // hakukoneet ja crawlerit estetty
 app.use(compression());
 app.get('/health', (req, res) => res.send('ok'));
 const SHARED = ['kaupunki.js', 'kaupunki-mesh.js', 'gl3d.js', 'sw3d.js', 'shared.js', 'ajoneuvot.js', 'lisenssit.js', 'kosketus.js'];

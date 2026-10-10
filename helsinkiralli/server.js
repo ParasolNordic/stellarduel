@@ -9,6 +9,7 @@ const compression = require('compression');
 const { createGame } = require('./game');
 
 const app = express();
+require('../norobots.js')(app);                  // hakukoneet ja crawlerit estetty
 app.use(compression());
 app.get('/health', (req, res) => res.send('ok'));
 app.use(express.static(path.join(__dirname, 'public')));

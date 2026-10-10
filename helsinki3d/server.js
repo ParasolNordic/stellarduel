@@ -11,6 +11,7 @@ import compression from 'compression';
 import http from 'node:http';
 import { Server } from 'socket.io';
 import { attachFps } from './server/fps-server.js';
+import noRobots from '../norobots.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DIST = path.join(__dirname, 'dist');
@@ -49,6 +50,7 @@ button{width:100%;margin-top:14px;font:inherit;font-weight:700;letter-spacing:.0
 
 const app = express();
 app.disable('x-powered-by');
+noRobots(app);                                       // hakukoneet ja crawlerit estetty (ennen kirjautumista)
 app.set('trust proxy', 1);                                   // Renderin välityspalvelin: oikea IP ja https
 app.use(compression({ filter: (req, res) => !/\.(glb|jpg|png)$/.test(req.path) && compression.filter(req, res) }));
 app.get('/health', (req, res) => res.send('ok'));

@@ -12,13 +12,9 @@ const compression = require('compression');
 const IT = require('./public/ityhteinen.js');
 
 const app = express();
+require('../norobots.js')(app);                  // hakukoneet ja crawlerit estetty
 app.disable('x-powered-by');
 app.use(compression());
-app.use((req, res, next) => { res.set('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex, noai, noimageai'); next(); });
-const BOTS = ['*', 'Googlebot', 'Bingbot', 'Slurp', 'DuckDuckBot', 'Baiduspider', 'YandexBot', 'Applebot', 'GPTBot', 'ChatGPT-User', 'OAI-SearchBot',
-  'CCBot', 'ClaudeBot', 'Claude-Web', 'anthropic-ai', 'Google-Extended', 'PerplexityBot', 'Bytespider', 'Amazonbot', 'FacebookBot', 'meta-externalagent', 'cohere-ai', 'Diffbot', 'Omgilibot'];
-const ROBOTS = BOTS.map(b => 'User-agent: ' + b + '\nDisallow: /\n').join('\n');
-app.get('/robots.txt', (req, res) => res.type('text/plain').send(ROBOTS));
 app.get('/health', (req, res) => res.send('ok'));
 const SHARED = ['kaupunki.js', 'kaupunki-mesh.js', 'gl3d.js', 'sw3d.js', 'shared.js', 'ajoneuvot.js', 'lisenssit.js', 'kosketus.js'];
 for (const f of SHARED) app.get('/yhteiset/' + f, (req, res) => res.sendFile(path.join(__dirname, '..', 'helsinkiralli', 'public', f), { maxAge: '1h' }));

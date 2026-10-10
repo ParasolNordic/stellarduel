@@ -8,6 +8,7 @@ const QRCode = require('qrcode');
 const { createGame } = require('./game');
 
 const app = express();
+require('../norobots.js')(app);                  // hakukoneet ja crawlerit estetty
 // Alkuperäinen jaetun ruudun versio pysyy saatavilla sellaisenaan
 app.get('/jaettu', (req, res) => res.sendFile(path.join(__dirname, '..', 'index.html')));
 app.get('/health', (req, res) => res.send('ok'));

@@ -8,6 +8,7 @@ const QRCode = require('qrcode');
 const { createGame } = require('./game');
 
 const app = express();
+require('../norobots.js')(app);                  // hakukoneet ja crawlerit estetty
 app.get('/health', (req, res) => res.send('ok'));
 app.use(express.static(path.join(__dirname, 'public')));
 const server = http.createServer(app);
