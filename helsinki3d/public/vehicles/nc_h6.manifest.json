@@ -1,0 +1,395 @@
+{
+  "name": "NC-H6 kevyt helikopteri",
+  "file": "nc_h6.glb",
+  "source": {
+    "model": "AH-6 Little Bird (3DS)",
+    "from": "cadnav.com",
+    "sourceTriangles": 24060,
+    "license": "cadnav.com:n ehdot: käyttö osana projektia sallittu myös kaupallisesti, muokkaus sallittu, mallin jakaminen tai myynti sellaisenaan kielletty, lähteeksi pyydetään cadnav.com"
+  },
+  "attribution": "3D-malli: cadnav.com (AH-6 Little Bird), muokattu",
+  "units": "m",
+  "axes": {
+    "up": "+Y",
+    "forward": "+Z",
+    "left": "+X"
+  },
+  "origin": "maan tasolla (jalasten pohja), pääroottorin akselin alla",
+  "bounds": {
+    "min": [
+      -3.986,
+      -0.0,
+      -5.12
+    ],
+    "max": [
+      3.7,
+      2.985,
+      4.023
+    ]
+  },
+  "dimensions": {
+    "lengthWithRotors": 9.14,
+    "fuselageLength": 7.13,
+    "fuselageWidthWithWeapons": 3.34,
+    "height": 2.98,
+    "rotorHubHeight": 2.84,
+    "mainRotorDiameter": 8.08,
+    "tailRotorDiameter": 1.48
+  },
+  "stats": {
+    "triangles": 14884,
+    "trianglesPerPart": {
+      "body": 11992,
+      "glass": 476,
+      "main": 2120,
+      "tail": 296
+    },
+    "vertices": 18358,
+    "drawCalls": 4,
+    "materials": "2 (paletti, läpinäkyvä lasi)",
+    "textures": "2 × 64² PNG",
+    "fileSizeBytes": 679468,
+    "reducedFrom": 24060
+  },
+  "articulation": {
+    "MainRotor": {
+      "pivot": [
+        0.0,
+        2.67,
+        0.0
+      ],
+      "axis": "y",
+      "radius": 4.04,
+      "rpm": 490,
+      "direction": "rotation.y kasvaa (vastapäivään ylhäältä)"
+    },
+    "TailRotor": {
+      "pivot": [
+        0.231,
+        1.822,
+        -4.563
+      ],
+      "axis": "x",
+      "radius": 0.74,
+      "rpm": 2900
+    },
+    "note": "Täydellä kierrosnopeudella lavat välkkyvät 60 FPS:llä. Pelin kannattaa näyttää nopeassa pyörimisessä läpikuultava roottorikiekko (oma verkko) ja hidastaa lapojen näkyvää pyörimistä."
+  },
+  "attachPoints": {
+    "Muzzle_Gun_L": {
+      "parent": "NCH6",
+      "local": [
+        0.945,
+        0.725,
+        1.075
+      ]
+    },
+    "Muzzle_Gun_R": {
+      "parent": "NCH6",
+      "local": [
+        -0.945,
+        0.725,
+        1.075
+      ]
+    },
+    "Rocket_L": {
+      "parent": "NCH6",
+      "local": [
+        1.547,
+        0.75,
+        0.964
+      ]
+    },
+    "Rocket_R": {
+      "parent": "NCH6",
+      "local": [
+        -1.547,
+        0.75,
+        0.964
+      ]
+    },
+    "Cam_Pilot": {
+      "parent": "NCH6",
+      "local": [
+        -0.35,
+        1.94,
+        0.6
+      ]
+    },
+    "Cam_Copilot": {
+      "parent": "NCH6",
+      "local": [
+        0.35,
+        1.94,
+        0.6
+      ]
+    },
+    "Exhaust": {
+      "parent": "NCH6",
+      "local": [
+        0.0,
+        1.235,
+        -1.83
+      ]
+    }
+  },
+  "collision": {
+    "note": "Akselisuuntaiset laatikot + roottorikiekko.",
+    "boxes": [
+      {
+        "name": "cabin",
+        "min": [
+          -0.72,
+          0.5,
+          -1.9
+        ],
+        "max": [
+          0.72,
+          2.55,
+          1.95
+        ]
+      },
+      {
+        "name": "tailboom",
+        "min": [
+          -0.45,
+          1.0,
+          -4.85
+        ],
+        "max": [
+          0.45,
+          2.75,
+          -1.9
+        ]
+      },
+      {
+        "name": "skids",
+        "min": [
+          -1.0,
+          0.0,
+          -0.4
+        ],
+        "max": [
+          1.0,
+          0.9,
+          2.3
+        ]
+      },
+      {
+        "name": "weapons",
+        "min": [
+          -1.83,
+          0.42,
+          0.0
+        ],
+        "max": [
+          1.83,
+          1.05,
+          1.62
+        ]
+      }
+    ],
+    "rotorDisc": {
+      "center": [
+        0.0,
+        2.67,
+        0.0
+      ],
+      "radius": 4.04
+    }
+  },
+  "palette": [
+    {
+      "name": "body",
+      "baseColorSRGB": [
+        65,
+        82,
+        56
+      ],
+      "roughness": 0.7,
+      "metalness": 0.0
+    },
+    {
+      "name": "interior",
+      "baseColorSRGB": [
+        118,
+        136,
+        108
+      ],
+      "roughness": 0.85,
+      "metalness": 0.0
+    },
+    {
+      "name": "blade",
+      "baseColorSRGB": [
+        50,
+        50,
+        48
+      ],
+      "roughness": 0.6,
+      "metalness": 0.0
+    },
+    {
+      "name": "plank",
+      "baseColorSRGB": [
+        74,
+        62,
+        50
+      ],
+      "roughness": 0.8,
+      "metalness": 0.0
+    },
+    {
+      "name": "metal",
+      "baseColorSRGB": [
+        98,
+        98,
+        98
+      ],
+      "roughness": 0.45,
+      "metalness": 0.6
+    },
+    {
+      "name": "exhaust",
+      "baseColorSRGB": [
+        120,
+        98,
+        70
+      ],
+      "roughness": 0.5,
+      "metalness": 0.7
+    },
+    {
+      "name": "black",
+      "baseColorSRGB": [
+        36,
+        36,
+        36
+      ],
+      "roughness": 0.7,
+      "metalness": 0.0
+    },
+    {
+      "name": "lightgrey",
+      "baseColorSRGB": [
+        156,
+        158,
+        152
+      ],
+      "roughness": 0.6,
+      "metalness": 0.0
+    },
+    {
+      "name": "gunmetal",
+      "baseColorSRGB": [
+        40,
+        42,
+        44
+      ],
+      "roughness": 0.42,
+      "metalness": 0.55
+    },
+    {
+      "name": "lens",
+      "baseColorSRGB": [
+        20,
+        28,
+        32
+      ],
+      "roughness": 0.06,
+      "metalness": 0.0
+    }
+  ],
+  "reduction": [
+    {
+      "part": "gunsmth",
+      "from": 3512,
+      "to": 1100
+    },
+    {
+      "part": "rocksmth",
+      "from": 1816,
+      "to": 1100
+    },
+    {
+      "part": "gunhldf",
+      "from": 672,
+      "to": 420
+    },
+    {
+      "part": "nozzle",
+      "from": 188,
+      "to": 120
+    },
+    {
+      "part": "pylnsmth",
+      "from": 932,
+      "to": 520
+    },
+    {
+      "part": "intrsmth",
+      "from": 504,
+      "to": 380
+    },
+    {
+      "part": "ruddpedl",
+      "from": 344,
+      "to": 120
+    },
+    {
+      "part": "seatsmth",
+      "from": 832,
+      "to": 420
+    },
+    {
+      "part": "fireextg",
+      "from": 576,
+      "to": 120
+    },
+    {
+      "part": "stiksmth",
+      "from": 1036,
+      "to": 300
+    },
+    {
+      "part": "seatbakf",
+      "from": 562,
+      "to": 420
+    },
+    {
+      "part": "antnsmth",
+      "from": 876,
+      "to": 480
+    },
+    {
+      "part": "senslens",
+      "from": 120,
+      "to": 60
+    },
+    {
+      "part": "tailsmth",
+      "from": 828,
+      "to": 650
+    },
+    {
+      "part": "skidsmth",
+      "from": 1852,
+      "to": 950
+    },
+    {
+      "part": "intrcnpy",
+      "from": 476,
+      "to": 0
+    },
+    {
+      "part": "mnrotsm",
+      "from": 2462,
+      "to": 1400
+    },
+    {
+      "part": "tlrtsmth",
+      "from": 388,
+      "to": 240
+    }
+  ]
+}

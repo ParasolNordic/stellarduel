@@ -231,3 +231,20 @@ body.touch #mapscreen canvas { max-height: 62vh; max-width: 56vw; }
 #tChat { left: calc(12px + env(safe-area-inset-left)); top: 60px; }
 #tBoard { left: calc(68px + env(safe-area-inset-left)); top: 60px; }
 #chat { z-index: 17; }
+
+/* ajoneuvot */
+#vhint { position: absolute; bottom: 120px; width: 100%; text-align: center; font-size: 14px; letter-spacing: 0.14em; color: #fff; text-shadow: 0 1px 3px #000; }
+#vhint b { color: var(--acc); }
+#vhud { position: absolute; left: 22px; bottom: 82px; background: rgba(10, 14, 20, 0.6); border: 1px solid rgba(255, 179, 71, 0.35); padding: 10px 14px; border-radius: 10px; min-width: 210px; font-variant-numeric: tabular-nums; }
+#vname { font-size: 12px; letter-spacing: 0.16em; color: var(--acc); font-weight: 800; }
+#vhud .vbar { height: 6px; background: rgba(255, 255, 255, 0.15); border-radius: 3px; margin: 6px 0; overflow: hidden; }
+#vhpfill { height: 100%; width: 100%; background: #7dd87d; transition: width 0.2s; }
+#vhud .vrow { display: flex; justify-content: space-between; gap: 14px; font-size: 20px; font-weight: 800; }
+#vhud .vrow.small { font-size: 12px; font-weight: 600; color: #c8d2dc; }
+#vhud .vkeys { font-size: 10px; color: #9aa6b2; letter-spacing: 0.08em; margin-top: 4px; }
+body.invehicle #ammo, body.invehicle #slots { display: none; }
+.tb[data-act=vehicle] { right: calc(300px + env(safe-area-inset-right)); bottom: 36px; border-color: rgba(120, 220, 120, 0.8); background: rgba(30, 110, 40, 0.4); }
+body.touch #vhud { left: auto; right: calc(12px + env(safe-area-inset-right)); top: 10px; bottom: auto; padding: 6px 10px; min-width: 150px; }
+body.touch #vhud .vrow { font-size: 15px; }
+body.touch #vhud .vkeys { display: none; }
+body.touch #vhint { bottom: auto; top: 22%; }

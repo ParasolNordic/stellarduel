@@ -1,0 +1,424 @@
+{
+ "source": "City model export (FME OBJ/MTL/PNG from CityGML), user-supplied",
+ "crs": "EPSG:3879",
+ "coordinates": "Three.js x=easting-origin.x, y=height-origin.z, z=-(northing-origin.y)",
+ "units": "metre",
+ "height_mode": "absolute (sea level)",
+ "origin_epsg3879": {
+  "easting": 25497686.194,
+  "northing": 6674233.976,
+  "height": 0.0
+ },
+ "bounds_epsg3879": {
+  "min": [
+   25497373.944595,
+   6673939.232355,
+   -0.154
+  ],
+  "max": [
+   25497998.443381,
+   6674528.719486,
+   71.33
+  ]
+ },
+ "bounds_local": {
+  "min": [
+   -312.24940499663353,
+   -0.154,
+   -294.74348600022495
+  ],
+  "max": [
+   312.2493810020387,
+   71.33,
+   294.7436449993402
+  ]
+ },
+ "size_m": {
+  "x": 624.4987859986722,
+  "y": 71.484,
+  "z": 589.4871309995651
+ },
+ "layers": {
+  "buildings": {
+   "file": "buildings.glb",
+   "byte_size": 15479092,
+   "texture_atlases": 4,
+   "atlas_size": 4096,
+   "draw_primitives": 5,
+   "triangles": 9943,
+   "primitives": [
+    {
+     "material": "buildings-atlas-0",
+     "triangles": 942
+    },
+    {
+     "material": "buildings-atlas-1",
+     "triangles": 1253
+    },
+    {
+     "material": "buildings-atlas-2",
+     "triangles": 1643
+    },
+    {
+     "material": "buildings-atlas-3",
+     "triangles": 3670
+    },
+    {
+     "material": "untextured",
+     "triangles": 2435
+    }
+   ],
+   "textured_materials": 1677,
+   "untextured_triangles": 2435,
+   "dropped_triangles": {
+    "repeated_vertex": 0,
+    "zero_area": 0
+   },
+   "uv_outside_0_1_clamped": 0,
+   "textures": {
+    "source_images": 1677,
+    "source_megapixels": 156.3,
+    "after_uv_crop_megapixels": 155.6,
+    "atlas_megapixels_used": 58.4,
+    "scale_min": 0.035,
+    "scale_median": 0.698,
+    "scale_max": 1.0,
+    "images_unscaled": 59,
+    "texel_density_cap_px_per_m2": 292.9,
+    "texel_cap_m_per_px": 0.0584,
+    "mean_m_per_px_weighted_area": 0.0589
+   }
+  },
+  "terrain": {
+   "file": "terrain.glb",
+   "byte_size": 15878004,
+   "texture_atlases": 2,
+   "atlas_size": 4096,
+   "draw_primitives": 2,
+   "triangles": 99153,
+   "primitives": [
+    {
+     "material": "terrain-atlas-0",
+     "triangles": 53945
+    },
+    {
+     "material": "terrain-atlas-1",
+     "triangles": 45208
+    }
+   ],
+   "textured_materials": 109,
+   "untextured_triangles": 0,
+   "dropped_triangles": {
+    "repeated_vertex": 14,
+    "zero_area": 8
+   },
+   "uv_outside_0_1_clamped": 0,
+   "textures": {
+    "source_images": 109,
+    "source_megapixels": 49.5,
+    "after_uv_crop_megapixels": 48.2,
+    "atlas_megapixels_used": 29.2,
+    "scale_min": 0.779,
+    "scale_median": 0.779,
+    "scale_max": 0.779,
+    "images_unscaled": 0,
+    "mean_m_per_px_weighted_area": 0.0935,
+    "nodata_images_filled": 53
+   }
+  }
+ },
+ "origin_wgs84": {
+  "lat": 60.180951,
+  "lon": 24.958306
+ },
+ "area_polygon_local_xz": [
+  [
+   -209.79,
+   110.25
+  ],
+  [
+   -312.249,
+   -6.937
+  ],
+  [
+   -4.861,
+   -274.817
+  ],
+  [
+   11.653,
+   -294.743
+  ],
+  [
+   195.469,
+   -242.952
+  ],
+  [
+   312.249,
+   -109.424
+  ],
+  [
+   309.677,
+   216.473
+  ],
+  [
+   282.781,
+   291.928
+  ],
+  [
+   -18.606,
+   294.744
+  ],
+  [
+   -51.67,
+   291.084
+  ],
+  [
+   -50.583,
+   155.118
+  ],
+  [
+   -209.79,
+   110.25
+  ]
+ ],
+ "area_polygon_note": "Export area (non-rectangular). Terrain exists only inside it; bounds_local is its bounding box.",
+ "source_stats": {
+  "vertices": 66676,
+  "uvs": 72136,
+  "polygons": 109118,
+  "ngons_triangulated": 0,
+  "materials": 1786,
+  "undefined_materials": 0,
+  "missing_texture_files": 0
+ },
+ "limits": [
+  "Visible textured geometry; use BVH on render meshes for collisions (see GRAFIIKKA-PERUSOHJE.md).",
+  "No street centrelines, trees or separate collision meshes in the source.",
+  "Orthophoto shows streets and water as pixels only."
+ ],
+ "water_polygons_local_xz": [
+  [
+   [
+    284.8,
+    -133.2
+   ],
+   [
+    284.8,
+    -122.8
+   ],
+   [
+    286.0,
+    -121.6
+   ],
+   [
+    286.0,
+    -117.3
+   ],
+   [
+    281.8,
+    -105.2
+   ],
+   [
+    275.7,
+    -100.9
+   ],
+   [
+    262.2,
+    -99.1
+   ],
+   [
+    249.4,
+    -98.5
+   ],
+   [
+    247.0,
+    -95.4
+   ],
+   [
+    246.4,
+    -74.1
+   ],
+   [
+    251.3,
+    -69.2
+   ],
+   [
+    251.9,
+    -63.7
+   ],
+   [
+    250.7,
+    -60.7
+   ],
+   [
+    245.8,
+    -57.0
+   ],
+   [
+    240.9,
+    -57.0
+   ],
+   [
+    237.2,
+    -59.4
+   ],
+   [
+    235.4,
+    -58.8
+   ],
+   [
+    233.6,
+    -52.1
+   ],
+   [
+    233.0,
+    -38.7
+   ],
+   [
+    231.1,
+    -34.4
+   ],
+   [
+    234.2,
+    -30.2
+   ],
+   [
+    234.2,
+    -25.9
+   ],
+   [
+    229.9,
+    -22.3
+   ],
+   [
+    230.5,
+    20.4
+   ],
+   [
+    231.7,
+    27.1
+   ],
+   [
+    231.1,
+    35.7
+   ],
+   [
+    234.2,
+    41.8
+   ],
+   [
+    234.2,
+    50.3
+   ],
+   [
+    258.0,
+    50.3
+   ],
+   [
+    259.8,
+    47.2
+   ],
+   [
+    264.7,
+    46.6
+   ],
+   [
+    263.5,
+    36.3
+   ],
+   [
+    265.3,
+    27.7
+   ],
+   [
+    268.3,
+    22.9
+   ],
+   [
+    268.9,
+    7.6
+   ],
+   [
+    272.0,
+    4.0
+   ],
+   [
+    278.7,
+    4.0
+   ],
+   [
+    281.8,
+    7.6
+   ],
+   [
+    283.6,
+    43.0
+   ],
+   [
+    283.0,
+    58.8
+   ],
+   [
+    284.2,
+    69.2
+   ],
+   [
+    285.4,
+    132.0
+   ],
+   [
+    286.6,
+    141.1
+   ],
+   [
+    286.6,
+    178.9
+   ],
+   [
+    289.1,
+    205.1
+   ],
+   [
+    289.1,
+    257.6
+   ],
+   [
+    290.3,
+    257.6
+   ],
+   [
+    305.5,
+    215.5
+   ],
+   [
+    308.0,
+    -39.3
+   ],
+   [
+    309.2,
+    -42.4
+   ],
+   [
+    311.6,
+    -43.0
+   ],
+   [
+    311.6,
+    -107.6
+   ],
+   [
+    308.6,
+    -107.6
+   ],
+   [
+    297.0,
+    -119.2
+   ],
+   [
+    289.1,
+    -130.2
+   ]
+  ]
+ ],
+ "water_note": "Merialue tunnistettu ortoilmakuvasta (tumma tasainen vesipinta, rakennusten varjot rajattu pois); peli estää kävelyn veden päällä."
+}

@@ -1,0 +1,455 @@
+{
+  "name": "NC-4 panssaroitu miehistönkuljetusajoneuvo 4x4 + RWS (raskas konekivääri)",
+  "file": "nc4_apc.glb",
+  "generator": "build_vehicle.py",
+  "units": "m",
+  "axes": {
+    "up": "+Y",
+    "forward": "+Z",
+    "left": "+X"
+  },
+  "origin": "maan tasolla, akselivälin keskellä",
+  "bounds": {
+    "min": [
+      -1.45,
+      0.0,
+      -3.43
+    ],
+    "max": [
+      1.45,
+      4.35,
+      3.18
+    ]
+  },
+  "dimensions": {
+    "length": 6.61,
+    "width": 2.9,
+    "widthBody": 2.4,
+    "roofHeight": 2.45,
+    "heightToRwsTop": 3.36,
+    "heightWithAntennas": 4.35,
+    "groundClearance": 0.48
+  },
+  "stats": {
+    "triangles": 12874,
+    "trianglesPerMesh": {
+      "body": 5126,
+      "wheel": 1744,
+      "turret": 256,
+      "cradle": 516
+    },
+    "vertices": 16710,
+    "drawCalls": 7,
+    "materials": 1,
+    "textures": "3 × 64² PNG (väri, metallisuus/karheus, hehku)",
+    "fileSizeBytes": 472056
+  },
+  "material": {
+    "name": "NC4_Palette",
+    "note": "Kaikki värit palettitekstuurista; UV:t osoittavat värin keskelle, joten suodatus on NEAREST ja mipmapit eivät sekoita värejä.",
+    "palette": [
+      {
+        "name": "paint",
+        "uv": [
+          0.0625,
+          0.0625
+        ],
+        "baseColorSRGB": [
+          64,
+          82,
+          60
+        ],
+        "roughness": 0.72,
+        "metalness": 0.0,
+        "emissive": false
+      },
+      {
+        "name": "paint_dark",
+        "uv": [
+          0.1875,
+          0.0625
+        ],
+        "baseColorSRGB": [
+          41,
+          51,
+          40
+        ],
+        "roughness": 0.8,
+        "metalness": 0.0,
+        "emissive": false
+      },
+      {
+        "name": "paint_alt",
+        "uv": [
+          0.3125,
+          0.0625
+        ],
+        "baseColorSRGB": [
+          57,
+          74,
+          54
+        ],
+        "roughness": 0.74,
+        "metalness": 0.0,
+        "emissive": false
+      },
+      {
+        "name": "rubber",
+        "uv": [
+          0.4375,
+          0.0625
+        ],
+        "baseColorSRGB": [
+          27,
+          27,
+          27
+        ],
+        "roughness": 0.93,
+        "metalness": 0.0,
+        "emissive": false
+      },
+      {
+        "name": "rim",
+        "uv": [
+          0.5625,
+          0.0625
+        ],
+        "baseColorSRGB": [
+          86,
+          92,
+          78
+        ],
+        "roughness": 0.62,
+        "metalness": 0.15,
+        "emissive": false
+      },
+      {
+        "name": "steel",
+        "uv": [
+          0.6875,
+          0.0625
+        ],
+        "baseColorSRGB": [
+          118,
+          118,
+          112
+        ],
+        "roughness": 0.45,
+        "metalness": 0.65,
+        "emissive": false
+      },
+      {
+        "name": "gunmetal",
+        "uv": [
+          0.8125,
+          0.0625
+        ],
+        "baseColorSRGB": [
+          40,
+          42,
+          44
+        ],
+        "roughness": 0.42,
+        "metalness": 0.55,
+        "emissive": false
+      },
+      {
+        "name": "black",
+        "uv": [
+          0.9375,
+          0.0625
+        ],
+        "baseColorSRGB": [
+          18,
+          18,
+          18
+        ],
+        "roughness": 0.7,
+        "metalness": 0.0,
+        "emissive": false
+      },
+      {
+        "name": "glass",
+        "uv": [
+          0.0625,
+          0.1875
+        ],
+        "baseColorSRGB": [
+          20,
+          28,
+          32
+        ],
+        "roughness": 0.06,
+        "metalness": 0.0,
+        "emissive": false
+      },
+      {
+        "name": "lamp",
+        "uv": [
+          0.1875,
+          0.1875
+        ],
+        "baseColorSRGB": [
+          235,
+          235,
+          225
+        ],
+        "roughness": 0.2,
+        "metalness": 0.0,
+        "emissive": true
+      },
+      {
+        "name": "tail",
+        "uv": [
+          0.3125,
+          0.1875
+        ],
+        "baseColorSRGB": [
+          160,
+          20,
+          15
+        ],
+        "roughness": 0.3,
+        "metalness": 0.0,
+        "emissive": true
+      },
+      {
+        "name": "amber",
+        "uv": [
+          0.4375,
+          0.1875
+        ],
+        "baseColorSRGB": [
+          205,
+          120,
+          25
+        ],
+        "roughness": 0.3,
+        "metalness": 0.0,
+        "emissive": false
+      },
+      {
+        "name": "ammo",
+        "uv": [
+          0.5625,
+          0.1875
+        ],
+        "baseColorSRGB": [
+          66,
+          72,
+          46
+        ],
+        "roughness": 0.7,
+        "metalness": 0.0,
+        "emissive": false
+      }
+    ],
+    "emissiveStrength": 2.0
+  },
+  "wheels": {
+    "radius": 0.625,
+    "width": 0.4,
+    "wheelbase": 3.5,
+    "track": 2.0,
+    "nodes": {
+      "FL": {
+        "node": "Steer_FL",
+        "position": [
+          1.0,
+          0.625,
+          1.75
+        ]
+      },
+      "FR": {
+        "node": "Steer_FR",
+        "position": [
+          -1.0,
+          0.625,
+          1.75
+        ]
+      },
+      "RL": {
+        "node": "Wheel_RL",
+        "position": [
+          1.0,
+          0.625,
+          -1.75
+        ]
+      },
+      "RR": {
+        "node": "Wheel_RR",
+        "position": [
+          -1.0,
+          0.625,
+          -1.75
+        ]
+      }
+    },
+    "spin": "Wheel_*-solmun rotation.x += ajettu matka / säde (sama etumerkki kaikilla pyörillä, eteenpäin ajo = positiivinen)",
+    "steer": {
+      "nodes": [
+        "Steer_FL",
+        "Steer_FR"
+      ],
+      "axis": "y",
+      "maxDeg": 30.0
+    }
+  },
+  "articulation": {
+    "Turret": {
+      "pivot": [
+        0.0,
+        2.45,
+        0.45
+      ],
+      "axis": "y",
+      "limits": null
+    },
+    "Cradle": {
+      "pivot": [
+        0.0,
+        3.11,
+        0.45
+      ],
+      "axis": "x",
+      "minDeg": -15.0,
+      "maxDeg": 50.0
+    }
+  },
+  "attachPoints": {
+    "Muzzle": {
+      "parent": "Cradle",
+      "local": [
+        0,
+        0.135,
+        1.46
+      ],
+      "worldAtRest": [
+        0,
+        3.245,
+        1.91
+      ]
+    },
+    "Cam_Gunner": {
+      "parent": "Cradle",
+      "local": [
+        -0.305,
+        0.15,
+        0.24
+      ]
+    },
+    "Headlight_L": {
+      "parent": "NC4_APC",
+      "local": [
+        0.75,
+        1.16,
+        3.1
+      ]
+    },
+    "Headlight_R": {
+      "parent": "NC4_APC",
+      "local": [
+        -0.75,
+        1.16,
+        3.1
+      ]
+    },
+    "Taillight_L": {
+      "parent": "NC4_APC",
+      "local": [
+        0.835,
+        1.08,
+        -3.02
+      ]
+    },
+    "Taillight_R": {
+      "parent": "NC4_APC",
+      "local": [
+        -0.835,
+        1.08,
+        -3.02
+      ]
+    },
+    "Cam_Driver": {
+      "parent": "NC4_APC",
+      "local": [
+        0.55,
+        2.1,
+        1.05
+      ]
+    },
+    "Exhaust": {
+      "parent": "NC4_APC",
+      "local": [
+        -1.18,
+        0.8,
+        0.6
+      ]
+    }
+  },
+  "collision": {
+    "note": "Kevyt törmäysmalli: akselisuuntaiset laatikot ajoneuvon omassa koordinaatistossa.",
+    "boxes": [
+      {
+        "name": "hull",
+        "min": [
+          -1.2,
+          0.48,
+          -3.1
+        ],
+        "max": [
+          1.2,
+          2.45,
+          1.8
+        ]
+      },
+      {
+        "name": "front",
+        "min": [
+          -1.18,
+          0.78,
+          1.8
+        ],
+        "max": [
+          1.18,
+          1.62,
+          3.13
+        ]
+      },
+      {
+        "name": "spare",
+        "min": [
+          -0.05,
+          1.21,
+          -3.45
+        ],
+        "max": [
+          1.21,
+          2.47,
+          -2.95
+        ]
+      },
+      {
+        "name": "rws",
+        "min": [
+          -0.45,
+          2.45,
+          0.0
+        ],
+        "max": [
+          0.45,
+          3.36,
+          0.9
+        ]
+      }
+    ]
+  },
+  "weapon": {
+    "type": "raskas konekivääri kauko-ohjattavassa asejärjestelmässä (RWS)",
+    "barrelLength": 1.14,
+    "muzzleNode": "Muzzle",
+    "ammoBoxSide": "+X",
+    "sightSide": "-X"
+  },
+  "attribution": "Oma proseduraalinen malli – ei lisenssin vaatimaa lähdemainintaa."
+}

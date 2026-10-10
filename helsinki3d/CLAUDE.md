@@ -20,12 +20,13 @@ Selaimessa toimiva Three.js-pohjainen, päivänvalossa teksturoitu Helsinki 3D -
 - Suorituskyky: `docs/PERFORMANCE.md`. Mittaa (`?bench=all`) ennen optimointeja.
 
 ## Nordic Combat (`fps.html`, `src/fps/`, `server/fps-server.js`)
-Kolmen pelaajan moninpeli-FPS samassa maailmassa. Render-palvelu `nordiccombat`: REQUIRE_PASSWORD=1 ja GAME_PASSWORD (salaisuus, asetetaan vain Renderissä).
+1–6 pelaajan moninpeli-FPS samassa maailmassa. Render-palvelu `nordiccombat`: REQUIRE_PASSWORD=1 ja GAME_PASSWORD (salaisuus, asetetaan vain Renderissä).
 - Nimi pelaajille näkyvissä paikoissa on Nordic Combat; Helsinki mainitaan vain lisenssin vaatimassa aineistolähteessä (CC BY 4.0).
 - Ohjaus: Välilyönti/hiiri ampuu, E hyppy, 1–7 aseet, Z kiikari, T tiimiviesti, Tab tilanne + näppäimet; kosketuslaitteilla `ui/Touch.js`.
-- Kartat: `/` = kartta 1 (`public/world`, nimiavaruus /fps), `/kartta2` = kartta 2 (`public/world2`, /fps2). 1–6 pelaajaa.
+- Kartat: `/` = kartta 1 (`public/world`, nimiavaruus /fps), `/kartta2` = kartta 2 (`public/world2`, /fps2), `/kartta3` = kartta 3 (`public/world3`, /fps3). 1–6 pelaajaa.
 - `shared.js` (palvelin + selain): paitavärit (sama väri = tiimi, ei omien tulitusta, tiimin kaadot 25), tarkastuspaikat ja laatikoiden mahdolliset paikat karttakohtaisesti.
-- Kartta 2:n meri: `water_polygons_local_xz` manifestissa (käyttäjän merkitsemä, kohdistettu ilmakuvaan) → `world/Water.js` vedenpinta, `PlayerController.validXZ` estää kävelyn.
+- Meri (kartat 2 ja 3): `water_polygons_local_xz` manifestissa (kartta 2 käyttäjän merkitsemä, kartta 3 tunnistettu ilmakuvasta) → `world/Water.js` maastoon myötäilevä vedenpinta (+5 cm), `PlayerController.validXZ` estää kävelyn; `badness()` päästää kielletylle alueelle joutuneen pelaajan vain poispäin (ei jumia).
+- Ajoneuvot (kartat 2 ja 3, `vehicles/Vehicles.js`, mallit `public/vehicles/`): NC-4 panssariajoneuvo (RWS-konekivääri, ase 8) ja NC-H6 helikopteri (konetykit 9 + raketit). V / KYYTI nousee ja poistuu. Kuljettajan selain simuloi ja lähettää `vst` 20 Hz; palvelin päättää kuljettajan, kestävyyden (`VEHICLE_DMG`), tuhon ja uudelleensyntymän. Ajoneuvossa pelaaja on piilossa (snap-lippu 4) ja osumat menevät ajoneuvolle. Helikopterin malli cadnav.com → mainittu lisenssi-ikkunassa.
 - `world/Objectives.js` tarkastuspaikat (karttanäyttö, `ui/MiniMap.js` piirtää yläkuvan latauksessa) ja ammuslaatikot; `ui/Chat.js` tiimiradio (LCD).
 - `physics/WorldCollider.js` BVH (three-mesh-bvh) suoraan piirtomesheihin: säteet ja kapselitörmäys. `player/PlayerController.js` liike.
 - `weapons/defs.js` asevalikoima datana; `WeaponModels.js` ohjelmalliset mallit (staattiset osat yhdistetään); `Viewmodel.js` ADS, rekyyli, animaatiot, kiikarin PiP-suurennos; `WeaponSystem.js` tulitus, osumat, raketit, kranaatit.

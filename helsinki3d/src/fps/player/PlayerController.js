@@ -50,6 +50,13 @@ export class PlayerController {
     }
     return inside && dmin >= margin;
   }
+  // kuinka syvällä kielletyllä alueella piste on (0 = sallittu); jumista pääsee liikkumalla suuntaan, jossa arvo pienenee
+  badness(x, z, margin = 3, waterMargin = 0.4) {
+    let b = 0;
+    for (const W of this.water) b = Math.max(b, polyDist(W, x, z) + waterMargin);
+    if (this.poly) b = Math.max(b, margin - polyDist(this.poly, x, z));
+    return b;
+  }
   teleport(p, yaw = this.yaw) { this.pos.copy(p); this.vel.set(0, 0, 0); this.yaw = yaw; this.pitch = 0; this.onGround = false; }
   look(dx, dy) { this.yaw -= dx; this.pitch = THREE.MathUtils.clamp(this.pitch - dy, -1.5, 1.5); }
   jump() { if (this.onGround) { this.vel.y = JUMP; this.onGround = false; } }
@@ -75,14 +82,19 @@ export class PlayerController {
     let grounded = false;
     for (let i = 0; i < steps; i++) {
       this.vel.y -= GRAV * h;
-      const px = this.pos.x, pz = this.pos.z;
+      const px = this.pos.x, pz = this.pos.z, wasValid = !this.poly && !this.water.length || this.validXZ(px, pz);
       this.pos.addScaledVector(this.vel, h);
       this.pos.x = THREE.MathUtils.clamp(this.pos.x, this.lim.x0, this.lim.x1);
       this.pos.z = THREE.MathUtils.clamp(this.pos.z, this.lim.z0, this.lim.z1);
-      if (this.poly && !this.validXZ(this.pos.x, this.pos.z)) {      // alueen reuna: liu'utaan reunaa pitkin
+      // alueen reuna tai ranta: liu'utaan reunaa pitkin. Jos pelaaja on jo valmiiksi kielletyllä alueella
+      // (esim. törmäys työnsi), liike sallitaan, jotta hän pääsee pois eikä jää jumiin.
+      if (wasValid && (this.poly || this.water.length) && !this.validXZ(this.pos.x, this.pos.z)) {
         if (this.validXZ(this.pos.x, pz)) { this.pos.z = pz; this.vel.z = 0; }
         else if (this.validXZ(px, this.pos.z)) { this.pos.x = px; this.vel.x = 0; }
         else { this.pos.x = px; this.pos.z = pz; this.vel.x = this.vel.z = 0; }
+      } else if (!wasValid && this.badness(this.pos.x, this.pos.z) > this.badness(px, pz) + 1e-4) {
+        // jo valmiiksi kielletyllä alueella (törmäys työnsi rantaan): liike sallitaan vain poispäin, ei syvemmälle
+        this.pos.x = px; this.pos.z = pz; this.vel.x *= 0.5; this.vel.z *= 0.5;
       }
       const a = this._a.copy(this.pos).setY(this.pos.y + RADIUS), b = this._b.copy(this.pos).setY(this.pos.y + HEIGHT - RADIUS);
       const d = this.collider.collideCapsule(a, b, RADIUS, this._dl);
@@ -94,6 +106,8 @@ export class PlayerController {
         const vn = this.vel.dot(n); if (vn < 0) this.vel.addScaledVector(n, -vn);
       }
     }
+    // varmistus: virheellinen (NaN) sijainti palautetaan viimeiseen maakohtaan
+    if (!Number.isFinite(this.pos.x + this.pos.y + this.pos.z)) { this.pos.copy(this.lastGround); this.vel.set(0, 0, 0); }
     // varmistus: jos jalat painuvat maaston alle (rako mallissa), nostetaan pintaan
     const gy = this.world.heightAt(this.pos.x, this.pos.z);
     if (gy !== null && this.pos.y < gy - 0.5) { this.pos.y = gy; this.vel.y = Math.max(0, this.vel.y); grounded = true; }

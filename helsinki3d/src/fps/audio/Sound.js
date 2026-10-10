@@ -6,7 +6,7 @@ export class Sound {
     this.ctx = null; this.volume = 0.8; this.listener = null;
   }
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return; }
+    if (this.ctx) { if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') this.ctx.resume().catch(() => {}); return; }
     const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
     const c = this.ctx = new AC();
     this.master = c.createGain(); this.master.gain.value = this.volume;
@@ -28,6 +28,7 @@ export class Sound {
 
   setListener(pos, fwd, up) {
     const L = this.listener; if (!L) return;
+    if (!Number.isFinite(pos.x + pos.y + pos.z + fwd.x + fwd.y + fwd.z + up.x + up.y + up.z)) return;   // NaN myrkyttäisi koko äänipuun
     const t = this.ctx.currentTime;
     if (L.positionX) { L.positionX.setValueAtTime(pos.x, t); L.positionY.setValueAtTime(pos.y, t); L.positionZ.setValueAtTime(pos.z, t); L.forwardX.setValueAtTime(fwd.x, t); L.forwardY.setValueAtTime(fwd.y, t); L.forwardZ.setValueAtTime(fwd.z, t); L.upX.setValueAtTime(up.x, t); L.upY.setValueAtTime(up.y, t); L.upZ.setValueAtTime(up.z, t); }
     else { L.setPosition(pos.x, pos.y, pos.z); L.setOrientation(fwd.x, fwd.y, fwd.z, up.x, up.y, up.z); }
@@ -35,6 +36,7 @@ export class Sound {
   // äänilähteen ulostulo: paikallinen (oma ase) tai 3D-paikannettu; kauempana tummempi
   out(pos, gain = 1, verb = 0.5) {
     const c = this.ctx, g = c.createGain(); g.gain.value = gain;
+    if (pos && !Number.isFinite(pos.x + pos.y + pos.z)) { g.gain.value = 0; pos = null; }
     let node = g;
     if (pos) {
       const p = c.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 6; p.rolloffFactor = 1.1; p.maxDistance = 600;
@@ -85,9 +87,53 @@ export class Sound {
     const g = c.createGain(); g.gain.value = 0.0001; g.gain.exponentialRampToValueAtTime(0.5, t + 0.1);
     const p = c.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = 5; p.rolloffFactor = 1.2;
     s.connect(bp); bp.connect(g); g.connect(p); p.connect(this.master); s.start(t);
-    const set = q => { if (p.positionX) { p.positionX.value = q.x; p.positionY.value = q.y; p.positionZ.value = q.z; } else p.setPosition(q.x, q.y, q.z); };
+    const set = q => { if (!Number.isFinite(q.x + q.y + q.z)) return; if (p.positionX) { p.positionX.value = q.x; p.positionY.value = q.y; p.positionZ.value = q.z; } else p.setPosition(q.x, q.y, q.z); };
     set(pos);
     return { set, stop: () => { const tt = c.currentTime; g.gain.cancelScheduledValues(tt); g.gain.setValueAtTime(g.gain.value, tt); g.gain.exponentialRampToValueAtTime(0.0001, tt + 0.1); s.stop(tt + 0.15); } };
+  }
+  // ajoneuvon moottori: 'apc' = dieselin jyrinä, 'heli' = roottorin jyske + turbiinin vinkuna. set(pos, taso 0–1, nopeus 0–1)
+  engineLoop(type) {
+    if (!this.ok) return null;
+    const c = this.ctx, t = c.currentTime;
+    const p = c.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = type === 'heli' ? 14 : 8; p.rolloffFactor = 1.0; p.maxDistance = 900;
+    const g = c.createGain(); g.gain.value = 0.0001; g.connect(p); p.connect(this.master);
+    const vs = c.createGain(); vs.gain.value = 0.25; g.connect(vs); vs.connect(this.verbIn);
+    const nodes = [];
+    const noise = c.createBufferSource(); noise.buffer = this.noise; noise.loop = true; nodes.push(noise);
+    let osc, lfo, lfoG, bodyLp, whine;
+    if (type === 'heli') {
+      // roottorin lapojen isku: kohina, jonka voimakkuutta moduloidaan lapataajuudella
+      bodyLp = c.createBiquadFilter(); bodyLp.type = 'lowpass'; bodyLp.frequency.value = 420;
+      const am = c.createGain(); am.gain.value = 0.5;
+      lfo = c.createOscillator(); lfo.type = 'sawtooth'; lfo.frequency.value = 12; lfoG = c.createGain(); lfoG.gain.value = 0.5;
+      lfo.connect(lfoG); lfoG.connect(am.gain);
+      noise.connect(bodyLp); bodyLp.connect(am); am.connect(g);
+      const sub = c.createOscillator(); sub.type = 'sine'; sub.frequency.value = 24; const sg = c.createGain(); sg.gain.value = 0.35; sub.connect(sg); sg.connect(am); nodes.push(sub, lfo);
+      whine = c.createOscillator(); whine.type = 'triangle'; whine.frequency.value = 3200; const wg = c.createGain(); wg.gain.value = 0.025; whine.connect(wg); wg.connect(g); nodes.push(whine);
+    } else {
+      // diesel: matala sahalaita + suodatettu kohina
+      osc = c.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 38;
+      bodyLp = c.createBiquadFilter(); bodyLp.type = 'lowpass'; bodyLp.frequency.value = 260; bodyLp.Q.value = 2;
+      const og = c.createGain(); og.gain.value = 0.55; osc.connect(bodyLp); bodyLp.connect(og); og.connect(g);
+      const nb = c.createBiquadFilter(); nb.type = 'bandpass'; nb.frequency.value = 180; nb.Q.value = 0.7; const ng = c.createGain(); ng.gain.value = 0.5;
+      noise.connect(nb); nb.connect(ng); ng.connect(g); nodes.push(osc);
+    }
+    for (const n of nodes) n.start(t);
+    let stopped = false;
+    const set = (pos, level, speed) => {
+      if (stopped || !Number.isFinite(pos.x + pos.y + pos.z + level + speed)) return;
+      const tt = c.currentTime;
+      if (p.positionX) { p.positionX.setTargetAtTime(pos.x, tt, 0.03); p.positionY.setTargetAtTime(pos.y + 1.5, tt, 0.03); p.positionZ.setTargetAtTime(pos.z, tt, 0.03); } else p.setPosition(pos.x, pos.y + 1.5, pos.z);
+      const L = Math.max(0, Math.min(1, level));
+      if (type === 'heli') {
+        g.gain.setTargetAtTime(0.05 + L * 0.85, tt, 0.15); lfo.frequency.setTargetAtTime(3 + L * 11 + speed * 1.5, tt, 0.2);
+        bodyLp.frequency.setTargetAtTime(220 + L * 300 + speed * 250, tt, 0.2); whine.frequency.setTargetAtTime(1500 + L * 1900, tt, 0.3);
+      } else {
+        g.gain.setTargetAtTime(0.15 + L * 0.6, tt, 0.1); osc.frequency.setTargetAtTime(30 + L * 45 + speed * 20, tt, 0.12);
+        bodyLp.frequency.setTargetAtTime(180 + L * 500, tt, 0.12);
+      }
+    };
+    return { set, stop: () => { if (stopped) return; stopped = true; const tt = c.currentTime; g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0.0001, tt, 0.15); for (const n of nodes) n.stop(tt + 0.8); } };
   }
   explosion(pos, big = true) {
     if (!this.ok) return;

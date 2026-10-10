@@ -78,11 +78,11 @@ if (GAME) {
     res.status(401).send('Kirjaudu sisään');
   });
   // pelipalvelussa vain peli: juuri avaa pelin, katselinsivut ohjataan peliin
-  app.get(['/', '/index.html', '/viewer-v01.html', '/kartta2', '/kartta2/'], (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(DIST, 'fps.html')); });
+  app.get(['/', '/index.html', '/viewer-v01.html', '/kartta2', '/kartta2/', '/kartta3', '/kartta3/'], (req, res) => { res.set('Cache-Control', 'no-store'); res.sendFile(path.join(DIST, 'fps.html')); });
 } else {
   // katselinpalvelussa peli ei ole käytössä
   app.get('/fps.html', (req, res) => res.status(404).send('Not found'));
-  app.use('/world2', (req, res) => res.status(404).send('Not found'));     // pelin toinen kartta vain pelipalvelussa
+  app.use(['/world2', '/world3', '/vehicles'], (req, res) => res.status(404).send('Not found'));     // pelin kartat 2–3 ja ajoneuvot vain pelipalvelussa
 }
 app.use('/assets', express.static(path.join(DIST, 'assets'), { maxAge: GAME ? '7d' : '30d', immutable: !GAME }));
 app.use('/world', express.static(path.join(DIST, 'world'), { maxAge: '1d' }));
@@ -94,6 +94,7 @@ if (GAME) {
   const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000, allowRequest: (req, cb) => cb(null, authed(req)) });
   attachFps(io, { ns: '/fps', path: '/', map: 1 });                // kartta 1
   attachFps(io, { ns: '/fps2', path: '/kartta2', map: 2 });        // kartta 2
+  attachFps(io, { ns: '/fps3', path: '/kartta3', map: 3 });        // kartta 3
 }
 const PORT = process.env.PORT || 3010;
 server.listen(PORT, () => console.log(`${GAME ? 'Nordic Combat' : 'Helsinki 3D'} portissa ${PORT}${GAME && !PASSWORD ? ' – GAME_PASSWORD puuttuu!' : ''}`));

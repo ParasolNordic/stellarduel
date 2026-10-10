@@ -106,12 +106,12 @@ export class Avatars {
   }
   remove(id) { const a = this.map.get(id); if (!a) return; this.scene.remove(a.s.root); this.map.delete(id); }
   // tilannekuva palvelimelta
-  push(id, pos, yaw, pitch, w, alive, prot, hp) {
+  push(id, pos, yaw, pitch, w, alive, prot, hp, flags = 0) {
     const a = this.map.get(id); if (!a) return;
     const now = performance.now();
     if (alive && !a.alive) { a.buf.length = 0; a.pos.fromArray(pos); a.deadT = 0; }   // syntyi uudelleen: ei interpolointia vanhasta paikasta
     a.buf.push({ t: now, p: pos, yaw, pitch }); if (a.buf.length > 30) a.buf.shift();
-    a.alive = !!alive; a.prot = !!prot; a.hp = hp;
+    a.alive = !!alive; a.prot = !!prot; a.hp = hp; a.inVeh = !!(flags & 4);   // ajoneuvossa: piilossa, osumat menevät ajoneuvolle
     if (w !== a.w) this.setGun(a, w);
   }
   setGun(a, w) {
@@ -149,7 +149,8 @@ export class Avatars {
       const vel = Math.hypot(a.pos.x - a.last.x, a.pos.z - a.last.z) / Math.max(dt, 1e-3); a.last.copy(a.pos);
       a.speed += (Math.min(9, vel) - a.speed) * Math.min(1, dt * 10);
       s.root.position.copy(a.pos);
-      if (a.alive) {
+      if (a.alive && a.inVeh) { s.root.visible = false; a.tag.visible = false; }
+      else if (a.alive) {
         s.root.visible = true; s.root.rotation.set(0, a.yaw, 0);
         a.phase += a.speed * dt * 1.5;
         const sw = Math.min(1, a.speed / 5) * 0.6;
@@ -176,7 +177,7 @@ export class Avatars {
     let best = null;
     const a0 = new THREE.Vector3(), a1 = new THREE.Vector3(), hc = new THREE.Vector3();
     for (const a of this.map.values()) {
-      if (!a.alive || !a.s.root.visible && !a.prot) continue;
+      if (!a.alive || a.inVeh || !a.s.root.visible && !a.prot) continue;
       const p = a.pos;
       hc.set(p.x, p.y + HEAD_Y, p.z);
       const th = raySphere(o, d, hc, HEAD_R);
@@ -191,7 +192,7 @@ export class Avatars {
   // kapselitesti ammuksille (raketin suora osuma)
   near(p, r) {
     for (const a of this.map.values()) {
-      if (!a.alive || a.color === this.myColor) continue;
+      if (!a.alive || a.inVeh || a.color === this.myColor) continue;
       const dy = THREE.MathUtils.clamp(p.y - a.pos.y, 0.2, 1.7);
       if (Math.hypot(p.x - a.pos.x, p.y - (a.pos.y + dy), p.z - a.pos.z) < r + BODY_R) return a;
     }

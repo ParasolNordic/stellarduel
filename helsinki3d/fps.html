@@ -24,11 +24,14 @@
   <div id="ammo"><div id="wname">—</div><div class="row"><span id="mag">30</span><span id="res">/ ∞</span></div><div id="nades"></div><div id="zoomlbl"></div></div>
   <div id="slots"></div>
   <div id="hint"></div>
+  <div id="vhint" class="hidden"></div>
+  <div id="vhud" class="hidden"><div id="vname">—</div><div class="vbar"><div id="vhpfill"></div></div>
+    <div class="vrow"><span id="vammo">100</span><span id="vrock"></span></div><div class="vrow small"><span id="vspd"></span><span id="valt"></span></div><div class="vkeys" id="vkeys"></div></div>
   <div id="board" class="hidden"><div class="bcol"><h3>TILANNE <span id="bcode"></span></h3><table><thead><tr><th></th><th>TIIMI / PELAAJA</th><th>KAADOT</th><th>KUOL.</th></tr></thead><tbody id="brows"></tbody></table><p class="sub" id="bsub"></p></div>
     <div class="bcol keyscol"><h3>NÄPPÄIMET</h3>
-      <div class="kgrid desk"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · hengityksen pidätys kiikarilla</span><b>Välilyönti / hiiri</b><span>ammu</span><b>Hiiri oikea</b><span>tähtää</span><b>E</b><span>hyppy</span><b>R</b><span>lataa</span><b>1–7 · Q</b><span>ase · edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos</span><b>T</b><span>tiimiviesti</span><b>Tab</b><span>tilanne ja näppäimet</span><b>F</b><span>suorituskykymittari</span><b>Esc</b><span>valikko</span></div>
-      <div class="kgrid tch"><b>Vasen peukalo</b><span>liiku · tikku ylös asti = juokse</span><b>Oikea peukalo</b><span>katsele</span><b>AMMU</b><span>ammu (voi vetää tähdätessä)</span><b>Yläpalkki</b><span>vaihda asetta</span><b>VIESTI</b><span>tiimiviesti</span></div>
-      <p class="sub">Tarkastuspaikalla (vihreä valopylväs) näet karttanäytöltä kaikkien sijainnit. Laatikoista saa kranaatteja ja sinkoammuksia – kävele laatikon luo.</p></div></div>
+      <div class="kgrid desk"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · hengityksen pidätys kiikarilla</span><b>Välilyönti / hiiri</b><span>ammu</span><b>Hiiri oikea</b><span>tähtää</span><b>E</b><span>hyppy</span><b>R</b><span>lataa</span><b>1–7 · Q</b><span>ase · edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos</span><b>T</b><span>tiimiviesti</span><b>V</b><span>nouse ajoneuvoon / poistu</span><b>Tab</b><span>tilanne ja näppäimet</span><b>F</b><span>suorituskykymittari</span><b>Esc</b><span>valikko</span></div>
+      <div class="kgrid tch"><b>Vasen peukalo</b><span>liiku · tikku ylös asti = juokse</span><b>Oikea peukalo</b><span>katsele</span><b>AMMU</b><span>ammu (voi vetää tähdätessä)</span><b>Yläpalkki</b><span>vaihda asetta</span><b>VIESTI</b><span>tiimiviesti</span><b>KYYTI</b><span>nouse ajoneuvoon / poistu</span></div>
+      <p class="sub">Tarkastuspaikalla (vihreä valopylväs) näet karttanäytöltä kaikkien sijainnit. Laatikoista saa kranaatteja ja sinkoammuksia – kävele laatikon luo.<br>Ajoneuvot (kartat 2 ja 3): panssariajoneuvo – WASD ajaa, hiiri kääntää tornia, ammu = konekivääri. Helikopteri – W/S eteen/taakse, A/D sivulle, E nousee, Q laskee, hiiri kääntää, ammu = konetykit, oikea hiiri tai G = raketit.</p></div></div>
   <div id="death" class="hidden"><div class="big">KAADUIT</div><div id="killer"></div><div id="respawn"></div></div>
   <div id="over" class="hidden"><div class="big" id="overWhy"></div><table><tbody id="overRows"></tbody></table><p class="sub">Uusi ottelu alkaa hetken kuluttua…</p></div>
   <div id="perf" class="hidden"></div>
@@ -38,7 +41,7 @@
 <div id="lobby" class="panel-wrap">
   <div class="panel">
     <div class="brand"><span class="mark">N</span><div><div class="title">NORDIC <span>COMBAT</span></div><div class="tag">1–6 PELAAJAA · TIIMIT VÄREITTÄIN · SELAIMESSA</div></div></div>
-    <div class="maps"><a href="/" data-map="1">Kartta 1</a><a href="/kartta2" data-map="2">Kartta 2</a></div>
+    <div class="maps"><a href="/" data-map="1">Kartta 1</a><a href="/kartta2" data-map="2">Kartta 2</a><a href="/kartta3" data-map="3">Kartta 3</a></div>
     <div id="lobbyStart">
       <label class="fld"><span>Nimesi</span><input id="name" maxlength="14" autocomplete="off" spellcheck="false" placeholder="PELAAJA"></label>
       <div class="fld"><span>Paidan väri <small>– sama väri = sama tiimi</small></span><div class="swatches" data-swatches></div></div>
@@ -55,7 +58,7 @@
     </div>
     <div id="loadbar"><div id="loadfill"></div><span id="loadtxt">Ladataan kaupunkia…</span></div>
     <details class="keys"><summary>Ohjaimet</summary>
-      <div class="grid"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · pidätä hengitystä kiikarilla</span><b>Välilyönti / hiiri vasen</b><span>ammu</span><b>E</b><span>hyppy</span><b>Hiiri oikea</b><span>tähtää (pidä)</span><b>R</b><span>lataa</span><b>1–7</b><span>vaihda asetta</span><b>Q</b><span>edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos 4× / 8×</span><b>T</b><span>tiimiviesti</span><b>Tab</b><span>tilanne ja näppäimet</span><b>Esc</b><span>valikko</span></div>
+      <div class="grid"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · pidätä hengitystä kiikarilla</span><b>Välilyönti / hiiri vasen</b><span>ammu</span><b>E</b><span>hyppy</span><b>Hiiri oikea</b><span>tähtää (pidä)</span><b>R</b><span>lataa</span><b>1–7</b><span>vaihda asetta</span><b>Q</b><span>edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos 4× / 8×</span><b>T</b><span>tiimiviesti</span><b>V</b><span>nouse ajoneuvoon / poistu</span><b>Tab</b><span>tilanne ja näppäimet</span><b>Esc</b><span>valikko</span></div>
       <div class="grid touchkeys"><b>Vasen peukalo</b><span>liiku · vie tikku ylös asti = juokse</span><b>Oikea peukalo</b><span>katsele vetämällä</span><b>Napit</b><span>ammu (voi vetää), tähtää, hyppy, lataa, kranaatti</span><b>Yläpalkki</b><span>vaihda asetta</span></div>
     </details>
     <div class="fine"><button class="linkbtn" id="licLink">© Aineistolähteet ja lisenssit</button></div>
@@ -91,6 +94,7 @@
   <button class="tb" data-act="grenade">KRANAATTI</button>
   <button class="tb hidden" id="tZoom" data-act="zoom">4×</button>
   <button class="tb sq" id="tChat" data-act="chat">VIESTI</button>
+  <button class="tb hidden" id="tVeh" data-act="vehicle">KYYTI</button>
   <button class="tb sq" id="tBoard" data-act="board">TILANNE</button>
 </div>
 <div id="rotate" class="hidden"><div>⟳</div>Käännä puhelin vaakatasoon</div>
@@ -108,6 +112,7 @@
 <p>Aineiston tuottaja: Helsingin kaupunki<br>Aineisto: Helsingin 3D-kaupunkitietomalli (LoD2) ja ortoilmakuva 2025<br>Lisenssi: Creative Commons Nimeä 4.0 Kansainvälinen (CC BY 4.0)<br>
 Lisenssin ehdot: <a href="https://creativecommons.org/licenses/by/4.0/deed.fi" target="_blank" rel="noopener">creativecommons.org/licenses/by/4.0/deed.fi</a><br>Aineiston lähde: <a href="https://kartta.hel.fi/3d/" target="_blank" rel="noopener">kartta.hel.fi/3d</a></p>
 <p>Alkuperäistä 3D-aineistoa on muokattu ja muunnettu pelikäyttöön soveltuvaksi (tekstuuriatlakset, paikallinen koordinaatisto).</p>
+<p>Helikopterin 3D-malli: cadnav.com (AH-6 Little Bird), muokattu. Panssariajoneuvo ja aseet ovat pelin omia malleja.</p>
 <p>Peli on itsenäinen tuotanto, eikä Helsingin kaupunki ole sen kehittäjä, julkaisija tai sponsori.</p>
 <button id="licClose" class="wide">Sulje</button></div></div>
 

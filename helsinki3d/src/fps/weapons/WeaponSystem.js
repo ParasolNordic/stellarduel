@@ -174,14 +174,20 @@ export class WeaponSystem {
       this.vm.setRocketVisible(false);
       for (let i = 0; i < 12; i++) this.fx.particles.emit({ p: camera.position.clone().addScaledVector(fwd, -0.6).toArray(), v: fwd.clone().multiplyScalar(-6 - Math.random() * 6).add(new THREE.Vector3(Math.random() - 0.5, Math.random(), Math.random() - 0.5)).toArray(), life: 1.5 + Math.random(), size: 0.3, size1: 2, color: [0.7, 0.7, 0.7], alpha: 0.4, frame: 0, drag: 2 });
     } else {
-      const pellets = d.pellets || 1, S = [this.idx, R2(muzzle.x), R2(muzzle.y), R2(muzzle.z)], hits = new Map();
+      const pellets = d.pellets || 1, S = [this.idx, R2(muzzle.x), R2(muzzle.y), R2(muzzle.z)], hits = new Map(), vhits = new Map();
       for (let i = 0; i < pellets; i++) {
         const dir = this.aimDir(camera, sp, new THREE.Vector3());
         const wh = this.collider.raycast(origin, dir, 350);
         const maxD = wh ? wh.dist : 350;
-        const ph = this.avatars.raycast(origin, dir, maxD);
+        let ph = this.avatars.raycast(origin, dir, maxD);
+        const vh = this.vehicleRay(origin, dir, ph ? ph.dist : maxD);
+        if (vh) ph = null;
         let end, code = 0;
-        if (ph && ph.color === this.myColor) {
+        if (vh) {
+          end = vh.point; code = 2;
+          if (!vh.friendly) { const h = vhits.get(vh.id) || 0; vhits.set(vh.id, h + d.dmg); }
+          this.fx.impact(vh.point, dir.clone().negate(), 'buildings', { size: 0.08 });
+        } else if (ph && ph.color === this.myColor) {
           end = ph.point; code = 3;                       // oma tiimiläinen: luoti pysähtyy, ei vahinkoa
         } else if (ph) {
           end = ph.point; code = 3;
@@ -200,6 +206,7 @@ export class WeaponSystem {
         this.net.emit('hit', { t: id, dmg: Math.round(h.dmg * 10) / 10, head: h.head, w: this.idx });
         if (this.onLocalHit) this.onLocalHit({ id, head: h.head, dmg: h.dmg });
       }
+      for (const [v, dmg] of vhits) { this.net.emit('vhit', { v, dmg: Math.round(dmg * 10) / 10, w: this.idx }); if (this.onLocalHit) this.onLocalHit({ id: -v, head: false, dmg }); }
       this.net.emit('fx', { S });
     }
     // rekyyli: osa siirtää tähtäystä pysyvästi (pelaaja kompensoi), osa on palautuvaa nykäystä
@@ -211,6 +218,48 @@ export class WeaponSystem {
     if (this.onShot) this.onShot(d);
     if (d.cycle && a.mag > 0) { this.state = 'cycle'; this.timer = -0.12; this.vm.startCycle(); this.sound.cycle(d); }
     else if (d.cycle) this.cooldown = 0.3;
+  }
+
+  // ---------- ajoneuvojen aseet ja osumat ajoneuvoihin ----------
+  // lähin ajoneuvo säteellä; friendly = oman tiimin kuljettama
+  vehicleRay(o, d, maxD, excludeId = null) {
+    if (!this.vehicles) return null;
+    const h = this.vehicles.raycast(o, d, maxD, excludeId); if (!h) return null;
+    const drv = h.v.driver && this.avatars.map.get(h.v.driver);
+    h.friendly = h.v.driver === this.myId || !!(drv && drv.color === this.myColor);
+    return h;
+  }
+  // ajoneuvon ase: laukaus annetusta pisteestä (piipun suu), palauttaa osumapisteen ja tyyppikoodin efekteille
+  hitscanFrom(origin, dir, dmg, w, { excludeVehicle = null, head = 1.5, range = 600 } = {}) {
+    const wh = this.collider.raycast(origin, dir, range);
+    const maxD = wh ? wh.dist : range;
+    let ph = this.avatars.raycast(origin, dir, maxD);
+    const vh = this.vehicleRay(origin, dir, ph ? ph.dist : maxD, excludeVehicle);
+    if (vh) ph = null;
+    if (vh) {
+      if (!vh.friendly) { this.net.emit('vhit', { v: vh.id, dmg, w }); if (this.onLocalHit) this.onLocalHit({ id: -vh.id, head: false, dmg }); }
+      this.fx.impact(vh.point, dir.clone().negate(), 'buildings', { size: 0.14 });
+      return { end: vh.point, code: 2 };
+    }
+    if (ph) {
+      if (ph.color !== this.myColor) {
+        const dd = dmg * (ph.head ? head : 1);
+        this.net.emit('hit', { t: ph.id, dmg: Math.round(dd * 10) / 10, head: ph.head, w });
+        if (this.onLocalHit) this.onLocalHit({ id: ph.id, head: ph.head, dmg: dd });
+        this.fx.playerHit(ph.point, ph.color);
+      }
+      return { end: ph.point, code: 3 };
+    }
+    if (wh) { this.fx.impact(wh.point, wh.normal, wh.kind, { size: 0.16 }); return { end: wh.point, code: KIND_CODE[wh.kind] || 1 }; }
+    return { end: origin.clone().addScaledVector(dir, range), code: 0 };
+  }
+  // helikopterin raketti (sama ammus ja alueosuma kuin singossa)
+  fireRocketFrom(pos, dir, fromVehicle = null) {
+    const s = WEAPONS[6].projSpeed;
+    this.spawnProjectile({ k: 'rocket', o: pos.toArray(), v: dir.clone().multiplyScalar(s).toArray(), n: ++this.projSeq, owner: this.myId, local: true, fromVehicle });
+    this.net.emit('proj', { k: 'rocket', o: pos.toArray().map(R2), v: dir.toArray().map(R2), n: this.projSeq, fuse: 0 });
+    this.sound.shot(WEAPONS[6]);
+    this.fx.muzzle(pos, dir, 1.5);
   }
 
   spawnGrenade(camera, player) {
@@ -226,11 +275,11 @@ export class WeaponSystem {
   }
 
   // ---------- ammukset ----------
-  spawnProjectile({ k, o, v, n, owner, local, fuse = 0 }) {
+  spawnProjectile({ k, o, v, n, owner, local, fuse = 0, fromVehicle = null }) {
     const mesh = k === 'rocket' ? rocketMesh() : grenadeMesh();
     mesh.traverse(m => { if (m.isMesh) m.castShadow = true; });
     this.scene.add(mesh);
-    const p = { k, pos: new THREE.Vector3().fromArray(o), vel: new THREE.Vector3().fromArray(v), n, owner, local, fuse, age: 0, mesh, acc: 0, rest: false,
+    const p = { k, pos: new THREE.Vector3().fromArray(o), vel: new THREE.Vector3().fromArray(v), n, owner, local, fuse, fromVehicle, age: 0, mesh, acc: 0, rest: false,
       snd: k === 'rocket' ? this.sound.rocketLoop(new THREE.Vector3().fromArray(o)) : null, spin: new THREE.Vector3(Math.random() * 10, Math.random() * 10, 0) };
     mesh.position.copy(p.pos);
     if (k === 'rocket' && p.vel.lengthSq() > 0) mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, -1), p.vel.clone().normalize());
@@ -264,7 +313,7 @@ export class WeaponSystem {
           if (hit) boom = { p: hit.point.clone().addScaledVector(hit.normal, 0.15), n: hit.normal, wall: hit.kind === 'buildings' };
           else {
             p.pos.addScaledVector(p.vel, H);
-            if (p.local) { const a = this.avatars.near(p.pos, 0.25); if (a) boom = { p: p.pos.clone(), n: new THREE.Vector3(0, 1, 0), wall: false, direct: true }; }
+            if (p.local) { const a = this.avatars.near(p.pos, 0.25) || (this.vehicles && this.vehicles.near(p.pos, 0.1, p.fromVehicle)); if (a) boom = { p: p.pos.clone(), n: new THREE.Vector3(0, 1, 0), wall: false, direct: true }; }
           }
           if (!boom && p.age > 6) boom = { p: p.pos.clone(), n: new THREE.Vector3(0, 1, 0), wall: false, air: true };
         } else if (!p.rest) {

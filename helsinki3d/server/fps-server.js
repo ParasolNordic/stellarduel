@@ -3,7 +3,7 @@
 // Liike lasketaan pelaajien selaimissa (ampujan näkymä ratkaisee osuman). Palvelin pitää kirjaa terveydestä, kuolemista,
 // pisteistä, räjähdysten alueosumista, ympäristön jäljistä ja ammuslaatikoista; tiedot lähetetään myös myöhemmin liittyville.
 import QRCode from 'qrcode';
-import { COLORS, COLOR_HEX, colorName, MAX_PLAYERS, KILL_LIMIT, MAPS, CRATE_KINDS, CRATE_RESPAWN } from '../src/fps/shared.js';
+import { COLORS, COLOR_HEX, colorName, MAX_PLAYERS, KILL_LIMIT, MAPS, CRATE_KINDS, CRATE_RESPAWN, VEHICLES, VEHICLE_DMG } from '../src/fps/shared.js';
 
 const LETTERS = 'ABCDEFGHJKLMNPRSTUVXYZ';
 const TIME_LIMIT = 600, SPAWN_PROTECT = 2.0, RESPAWN = 3.0;
@@ -35,9 +35,28 @@ export function attachFps(io, { ns = '/fps', path = '/', map = 1 } = {}) {
   }
   const publicCrates = room => room.crates.map(c => ({ i: c.i, kind: c.kind, p: MAPDEF.crateSpots[c.spot], active: c.active }));
 
+  // ---------- ajoneuvot: kuljettajan selain simuloi liikkeen, palvelin omistajuuden, kestävyyden ja tuhoutumisen ----------
+  function resetVehicles(room) {
+    room.vehicles = (MAPDEF.vehicles || []).map((d, i) => ({ id: i + 1, type: d.type, spawn: d, pos: [d.p[0], null, d.p[1]], h: d.h || 0, pi: 0, ro: 0, ty: 0, tp: 0,
+      s: 0, r: 0, driver: null, hp: VEHICLES[d.type].hp, alive: true, respawnT: 0 }));
+  }
+  const publicVehicles = room => room.vehicles.map(v => ({ id: v.id, type: v.type, p: v.pos, h: v.h, driver: v.driver, hp: Math.round(v.hp), alive: v.alive }));
+  function freeVehicle(room, v) { if (!v || !v.driver) return; const d = room.players.get(v.driver); if (d) d.vehicle = null; v.driver = null; }
+  function vehicleDamage(room, v, by, dmg, w) {
+    if (!v.alive || room.over) return;
+    const drv = v.driver && room.players.get(v.driver);
+    if (by && drv && drv !== by && drv.color === by.color) return;          // ei omien tulitusta (tiimiläisen kyyti)
+    const t = VEHICLE_DMG[v.type], k = w === 6 || w === 7 ? t.splash : (t[w] ?? t.small);
+    v.hp -= dmg * k;
+    if (v.hp > 0) { nsp.to(room.code).emit('vhit', { v: v.id, hp: Math.round(v.hp), by: by ? by.id : null }); return; }
+    v.hp = 0; v.alive = false; v.respawnT = VEHICLES[v.type].respawn;
+    nsp.to(room.code).emit('vboom', { v: v.id, p: v.pos, by: by ? by.id : null });
+    if (drv) { freeVehicle(room, v); damage(room, drv, by || drv, 999, { w: 10, force: true }); }
+    nsp.to(room.code).emit('vehicles', publicVehicles(room));
+  }
   function makeRoom(code) {
-    const room = { code, players: new Map(), marks: [], seq: 0, t: 0, over: false, overT: 0, timer: null, crates: [] };
-    resetCrates(room);
+    const room = { code, players: new Map(), marks: [], seq: 0, t: 0, over: false, overT: 0, timer: null, crates: [], vehicles: [] };
+    resetCrates(room); resetVehicles(room);
     room.timer = setInterval(() => tick(room, 0.05), 50);
     rooms.set(code, room);
     return room;
@@ -55,17 +74,22 @@ export function attachFps(io, { ns = '/fps', path = '/', map = 1 } = {}) {
     room.marks = []; room.t = 0; room.over = false; room.overT = 0;
     for (const p of room.players.values()) { p.kills = 0; p.deaths = 0; p.hp = 100; p.alive = false; p.deadT = RESPAWN - 0.5; }
     resetCrates(room);
+    for (const p of room.players.values()) p.vehicle = null;
+    resetVehicles(room);
     nsp.to(room.code).emit('newmatch', {});
+    nsp.to(room.code).emit('vehicles', publicVehicles(room));
     nsp.to(room.code).emit('crates', publicCrates(room));
     roster(room);
   }
   function damage(room, target, by, dmg, info) {
-    if (room.over || !target.alive || target.protect > 0) return;
+    if (room.over || !target.alive || (target.protect > 0 && !info.force)) return;
     if (by && by !== target && by.color === target.color) return;            // ei omien tulitusta
+    if (target.vehicle && !info.force) return;                              // ajoneuvossa: osumat menevät ajoneuvolle
     target.hp = Math.max(0, target.hp - dmg); target.lastHit = room.t;
     nsp.to(room.code).emit('hit', { t: target.id, by: by ? by.id : null, dmg: Math.round(dmg), hp: Math.round(target.hp), head: !!info.head, w: info.w, from: by ? by.pos : null });
     if (target.hp <= 0) {
       target.alive = false; target.deadT = 0; target.deaths++;
+      if (target.vehicle) { freeVehicle(room, room.vehicles.find(v => v.id === target.vehicle)); nsp.to(room.code).emit('vehicles', publicVehicles(room)); }
       if (by && by !== target) by.kills++; else if (by === target) target.kills = Math.max(0, target.kills - 1);
       nsp.to(room.code).emit('kill', { t: target.id, by: by ? by.id : null, w: info.w, head: !!info.head });
       roster(room);
@@ -91,10 +115,14 @@ export function attachFps(io, { ns = '/fps', path = '/', map = 1 } = {}) {
     let crateChange = false;
     for (const c of room.crates) if (!c.active) { c.respawnT -= dt; if (c.respawnT <= 0) { c.spot = freeSpot(room, c.spot); c.active = true; crateChange = true; } }
     if (crateChange) nsp.to(room.code).emit('crates', publicCrates(room));
+    let vChange = false;
+    for (const v of room.vehicles) if (!v.alive) { v.respawnT -= dt; if (v.respawnT <= 0) { Object.assign(v, { pos: [v.spawn.p[0], null, v.spawn.p[1]], h: v.spawn.h || 0, pi: 0, ro: 0, ty: 0, tp: 0, s: 0, r: 0, hp: VEHICLES[v.type].hp, alive: true, driver: null }); vChange = true; } }
+    if (vChange) nsp.to(room.code).emit('vehicles', publicVehicles(room));
     room.snapAcc = (room.snapAcc || 0) + dt;
     if (room.snapAcc >= 0.05) {
       room.snapAcc = 0;
-      nsp.to(room.code).volatile.emit('snap', { t: r2(room.t), P: [...room.players.values()].map(p => [p.id, p.pos, p.yaw, p.pitch, p.w, p.flags, Math.round(p.hp), p.alive ? 1 : 0, p.protect > 0 ? 1 : 0]) });
+      nsp.to(room.code).volatile.emit('snap', { t: r2(room.t), P: [...room.players.values()].map(p => [p.id, p.pos, p.yaw, p.pitch, p.w, p.flags | (p.vehicle ? 4 : 0), Math.round(p.hp), p.alive ? 1 : 0, p.protect > 0 ? 1 : 0]),
+        V: room.vehicles.map(v => [v.id, v.pos, v.h, v.pi, v.ro, v.ty, v.tp, v.driver || 0, Math.round(v.hp), v.alive ? 1 : 0, v.s, v.r]) });
     }
   }
   const validColor = c => (typeof c === 'string' && COLOR_HEX.has(c.toLowerCase()) ? c.toLowerCase() : null);
@@ -103,6 +131,7 @@ export function attachFps(io, { ns = '/fps', path = '/', map = 1 } = {}) {
     let room = null, me = null;
     const leave = () => {
       if (!room || !me) return;
+      if (me.vehicle) { freeVehicle(room, room.vehicles.find(v => v.id === me.vehicle)); nsp.to(room.code).emit('vehicles', publicVehicles(room)); }
       room.players.delete(me.id); sock.leave(room.code);
       nsp.to(room.code).emit('left', { id: me.id, name: me.name });
       roster(room); closeIfEmpty(room); room = null; me = null;
@@ -126,7 +155,7 @@ export function attachFps(io, { ns = '/fps', path = '/', map = 1 } = {}) {
       me = { id: ++r.seq, name, color: validColor(d && d.color) || COLORS[0].hex, pos: [0, 0, 0], yaw: 0, pitch: 0, w: 0, flags: 0,
         hp: 100, alive: false, deadT: RESPAWN, protect: 0, kills: 0, deaths: 0, lastHit: -99, sock, lastChat: 0 };
       room = r; r.players.set(me.id, me); sock.join(code);
-      cb({ ok: true, id: me.id, color: me.color, name: me.name, code, marks: r.marks, t: r.t, crates: publicCrates(r) });
+      cb({ ok: true, id: me.id, color: me.color, name: me.name, code, marks: r.marks, t: r.t, crates: publicCrates(r), vehicles: publicVehicles(r) });
       roster(r);
       sock.to(code).emit('joined', { id: me.id, name: me.name });
     });
@@ -167,6 +196,12 @@ export function attachFps(io, { ns = '/fps', path = '/', map = 1 } = {}) {
         if (Array.isArray(d.occ) && d.occ.includes(p.id)) dmg *= 0.2;   // seinän takana: vain pieni osa paineaallosta
         if (dmg >= 1) damage(room, p, me, dmg, { w: d.k === 'rocket' ? 6 : 7 });
       }
+      for (const v of room.vehicles) {
+        if (!v.alive || v.pos[1] === null) continue;
+        const dist = Math.hypot(v.pos[0] - d.p[0], v.pos[1] + 1.4 - d.p[1], v.pos[2] - d.p[2]);
+        if (dist > s.r + 2) continue;
+        vehicleDamage(room, v, me, s.dmg * Math.pow(Math.max(0, 1 - Math.max(0, dist - 2) / s.r), 1.2), d.k === 'rocket' ? 6 : 7);
+      }
     }));
     // ammuslaatikon poiminta: palvelin tarkistaa etäisyyden ja ettei laatikkoa ole jo otettu
     sock.on('pickup', inRoom(d => {
@@ -186,6 +221,28 @@ export function attachFps(io, { ns = '/fps', path = '/', map = 1 } = {}) {
       const msg = { id: me.id, name: me.name, color: me.color, text };
       for (const p of room.players.values()) if (p.color === me.color) p.sock.emit('chat', msg);
     }));
+    // ajoneuvot
+    sock.on('venter', inRoom(d => {
+      const v = room.vehicles.find(x => x.id === (d && d.v));
+      if (!v || !v.alive || v.driver || !me.alive || me.vehicle || room.over) return;
+      const r = VEHICLES[v.type].enterRadius + 1.5;
+      if (v.pos[1] !== null && Math.hypot(me.pos[0] - v.pos[0], me.pos[2] - v.pos[2]) > r) return;
+      v.driver = me.id; me.vehicle = v.id;
+      nsp.to(room.code).emit('vehicles', publicVehicles(room));
+    }));
+    sock.on('vexit', inRoom(() => { const v = room.vehicles.find(x => x.id === me.vehicle); if (v) { freeVehicle(room, v); nsp.to(room.code).emit('vehicles', publicVehicles(room)); } }));
+    sock.on('vst', inRoom(d => {
+      const v = room.vehicles.find(x => x.id === (d && d.v));
+      if (!v || v.driver !== me.id || !vec3(d.p)) return;
+      v.pos = d.p.map(r2); for (const k of ['h', 'pi', 'ro', 'ty', 'tp', 's', 'r']) if (fin(d[k])) v[k] = Math.round(d[k] * 1000) / 1000;
+    }));
+    sock.on('vhit', inRoom(d => {
+      const v = room.vehicles.find(x => x.id === (d && d.v));
+      if (!v || !me.alive || v.driver === me.id) return;
+      vehicleDamage(room, v, me, Math.max(0, Math.min(250, +d.dmg || 0)), d.w | 0);
+    }));
+    // ajoneuvon pudotessa / törmätessä kuljettaja raportoi vaurion itselleen
+    sock.on('vcrash', inRoom(d => { const v = room.vehicles.find(x => x.id === me.vehicle); if (v) vehicleDamage(room, v, null, Math.max(0, Math.min(400, +d.dmg || 0)), 6); }));
     sock.on('quit', leave);
     sock.on('disconnect', leave);
   });
