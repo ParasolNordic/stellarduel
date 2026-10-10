@@ -19,6 +19,10 @@ import { Sound } from './audio/Sound.js';
 import { Hud } from './ui/Hud.js';
 import { TouchControls } from './ui/Touch.js';
 import './ui/noZoom.js';
+import { renderTopView } from './ui/MiniMap.js';
+import { Objectives, MapScreen } from './world/Objectives.js';
+import { Chat } from './ui/Chat.js';
+import { COLORS, COLOR_HEX, MAPS, MAX_PLAYERS, KILL_LIMIT, colorName } from './shared.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -49,8 +53,9 @@ let qualityId = params.get('q') && QUALITY_PRESETS[params.get('q')] ? params.get
 if (!QUALITY_PRESETS[qualityId]) qualityId = 'high';
 const settings = { sens: +store.get('sens', 1), adsSens: +store.get('adsSens', 1), fov: +store.get('fov', 78), vol: +store.get('vol', 0.8) };
 
-let collider, player, vm, weapons, fx, marks, avatars;
-const me = { id: null, name: '', color: '#fff', alive: false, hp: 100, deadT: RESPAWN, protect: false, spawnReq: 0, killer: null, deathPos: new THREE.Vector3() };
+let collider, player, vm, weapons, fx, marks, avatars, objectives, mapScreen;
+let myColor = COLOR_HEX.has(store.get('color', '')) ? store.get('color', '') : COLORS[0].hex;
+const me = { id: null, name: '', color: myColor, alive: false, hp: 100, deadT: RESPAWN, protect: false, spawnReq: 0, killer: null, deathPos: new THREE.Vector3() };
 const game = { code: null, url: '', players: new Map(), t: 0, limit: 15, timeLimit: 600, over: false, playing: false, locked: false };
 let spawnCells = [];
 
@@ -94,6 +99,10 @@ async function load() {
   player.onStep = s => sound.step(s);
   applyQuality(qualityId);
   computeSpawnCells();
+  objectives = new Objectives(scene, world, MAPS[MAP.id]);
+  progress('Piirretään karttanäyttö…', 0.97);
+  mapScreen = new MapScreen($('mapscreen'), renderTopView(renderer, scene, world, { size: 900 }));
+  avatars.setMyColor(myColor); weapons.myColor = myColor;
   touch = new TouchControls({ root: $('touch'), player, weapons,
     onLook: (dx, dy) => { lookDx += dx * 2.3; lookDy += dy * 2.3; },
     actions: {
@@ -103,6 +112,8 @@ async function load() {
       ads: () => { weapons.adsHeld = !weapons.adsHeld; $('tAds').classList.toggle('on', weapons.adsHeld); },
       zoom: () => weapons.cycleZoom(),
       pause: () => pauseGame(),
+      chat: () => openChat(),
+      board: () => $('board').classList.toggle('hidden'),
     } });
   // asepaikat yläpalkissa: napautus vaihtaa aseen (kosketus)
   document.querySelectorAll('#slots div').forEach(el => el.addEventListener('pointerdown', e => { e.preventDefault(); if (me.alive) weapons.select(+el.dataset.i); }));
@@ -130,7 +141,7 @@ function computeSpawnCells() {
 }
 function pickSpawn() {
   if (!spawnCells.length) return world.center;
-  const others = [...avatars.map.values()].filter(a => a.alive).map(a => a.pos);
+  const others = [...avatars.map.values()].filter(a => a.alive && a.color !== me.color).map(a => a.pos);   // vain vastustajat
   if (!others.length) return spawnCells[(Math.random() * spawnCells.length) | 0];
   const scored = [];
   for (let i = 0; i < 160; i++) {
@@ -146,6 +157,19 @@ function pickSpawn() {
 
 // ---------- aula ----------
 $('name').value = store.get('name', '');
+// paitavärin valinta (aula ja taukovalikko); sama väri = sama tiimi
+function renderSwatches() {
+  document.querySelectorAll('[data-swatches]').forEach(box => {
+    if (!box.children.length) box.innerHTML = COLORS.map(c => `<button type="button" data-c="${c.hex}" title="${c.name}" style="background:${c.hex}"></button>`).join('');
+    box.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.c === myColor));
+  });
+}
+renderSwatches();
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('[data-swatches] button'); if (!b) return;
+  myColor = b.dataset.c; store.set('color', myColor); renderSwatches();
+  if (me.id !== null) socket.emit('color', { color: myColor });
+});
 if (params.get('k')) $('code').value = params.get('k').toUpperCase().slice(0, 4);
 for (const b of ['btnCreate', 'btnJoin']) $(b).disabled = true;
 function lobbyMsg(t, err = false) { $('lobbyMsg').textContent = t; $('lobbyMsg').classList.toggle('err', err); }
@@ -159,12 +183,13 @@ $('code').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnJoin')
 $('btnCopy').addEventListener('click', () => { navigator.clipboard?.writeText(game.url).then(() => { $('btnCopy').textContent = 'Kopioitu ✓'; }); });
 $('btnPlay').addEventListener('click', () => { sound.init(); startPlaying(); });
 function join(code) {
-  socket.emit('join', { code, name: myName() }, r => {
+  socket.emit('join', { code, name: myName(), color: myColor }, r => {
     if (!r || r.err) return lobbyMsg(r ? r.err : 'Yhteysvirhe', true);
     me.id = r.id; me.name = r.name; me.color = r.color; me.alive = false; me.deadT = RESPAWN;
     weapons.myId = r.id; game.code = r.code; game.t = r.t || 0;
     if (!game.url) game.url = location.origin + MAP.path + '?k=' + r.code;
     marks.clear(); for (const m of r.marks || []) marks.add(m);
+    objectives.setCrates(r.crates || []);
     history.replaceState(null, '', '?k=' + r.code + (params.get('q') ? '&q=' + params.get('q') : ''));
     $('lobbyStart').classList.add('hidden'); $('lobbyShare').classList.remove('hidden');
     $('shareCode').textContent = r.code; $('shareUrl').textContent = game.url;
@@ -174,7 +199,7 @@ function join(code) {
 }
 function renderPlayersList() {
   $('players').innerHTML = [...game.players.values()].map(p => `<div><i style="background:${p.color}"></i>${p.name.replace(/</g, '')}${p.id === me.id ? ' (sinä)' : ''}</div>`).join('') +
-    (game.players.size < 3 ? `<div style="color:#9aa6b2">Odotetaan pelaajia… (${game.players.size}/3)</div>` : '');
+    (game.players.size < MAX_PLAYERS ? `<div style="color:#9aa6b2">Pelaajia ${game.players.size}/${MAX_PLAYERS} · sama paidan väri = sama tiimi</div>` : '');
 }
 function startPlaying() {
   game.playing = true;
@@ -186,6 +211,10 @@ function startPlaying() {
     try { const r = document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }); r?.then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {}); } catch (e) { /* ei tukea */ }
   } else lockPointer();
 }
+// tiimiradio: viestit vain saman paitavärin pelaajille (palvelin suodattaa)
+const chat = new Chat({ root: $('chat'), onSend: t => net.emit('chat', { text: t }),
+  onClose: () => { if (!isTouch && game.playing && !game.locked) lockPointer(); } });
+function openChat() { if (!game.playing || !chat) return; player.keys.clear(); weapons.trigger = false; chat.openInput(); }
 function pauseGame() { game.locked = false; touch?.reset(); weapons.adsHeld = false; $('tAds').classList.remove('on'); $('menu').classList.remove('hidden'); }
 function resumeGame() { $('menu').classList.add('hidden'); if (isTouch) game.locked = true; else lockPointer(); }
 
@@ -232,12 +261,14 @@ addEventListener('keydown', e => {
   player.keys.add(e.code);
   if (e.repeat) return;
   if (e.code === 'KeyE') player.jump();
+  if (e.code === 'KeyT') { e.preventDefault(); openChat(); return; }
   if (!me.alive) return;
   if (e.code === 'Space') { weapons.trigger = true; weapons.pressed = true; }
   if (e.code === 'KeyR') weapons.reload();
   if (e.code === 'KeyG') weapons.throwGrenade();
   if (e.code === 'KeyQ') weapons.select(weapons.prev);
   if (e.code === 'KeyZ') weapons.cycleZoom();
+  if (e.code === 'KeyT') { e.preventDefault(); openChat(); return; }
   const n = /^Digit([1-7])$/.exec(e.code); if (n) weapons.select(+n[1] - 1);
 });
 addEventListener('keyup', e => { if (e.code === 'Space' && weapons) weapons.trigger = false; });
@@ -260,10 +291,13 @@ $('licClose').addEventListener('click', () => $('lic').classList.add('hidden'));
 const player_ = id => game.players.get(id) || { name: '?', color: '#aaa' };
 socket.on('roster', r => {
   game.players = new Map(r.players.map(p => [p.id, p])); game.limit = r.limit; game.timeLimit = r.timeLimit; game.t = r.t;
+  const mine = game.players.get(me.id);
+  if (mine) { me.color = mine.color; weapons.myColor = mine.color; avatars.setMyColor(mine.color);
+    chat?.setTeam(colorName(mine.color), mine.color, !r.players.some(p => p.id !== me.id && p.color === mine.color)); }
   for (const p of r.players) if (p.id !== me.id) avatars.ensure(p);
   for (const id of [...avatars.map.keys()]) if (!game.players.has(id)) avatars.remove(id);
   renderPlayersList();
-  hud.leaders(r.players, r.limit); hud.board(r.players, me.id, game.code);
+  hud.leaders(r.players, r.limit); hud.board(r.players, me.id, game.code, MAX_PLAYERS);
 });
 socket.on('snap', s => {
   game.t = s.t;
@@ -275,13 +309,16 @@ socket.on('snap', s => {
 socket.on('joined', d => { if (d.id !== me.id) hud.feed(`<span>${d.name.replace(/</g, '')}</span><span class="w">LIITTYI PELIIN</span>`); });
 socket.on('left', d => hud.feed(`<span>${d.name.replace(/</g, '')}</span><span class="w">POISTUI</span>`));
 const _v = new THREE.Vector3(), _d = new THREE.Vector3();
+let shotSnd = [];
 socket.on('fx', ({ id, S }) => {
   if (!Array.isArray(S) || S.length < 8) return;
   const def = WEAPONS[S[0]]; if (!def) return;
   const from = avatars.muzzleWorld(id, new THREE.Vector3()) || new THREE.Vector3(S[1], S[2], S[3]);
   const dir0 = _d.set(S[4] - from.x, S[5] - from.y, S[6] - from.z).normalize().clone();
   fx.remoteMuzzle(from, dir0);
-  sound.shot(def, from);
+  // äänet: kaukaiset ja liian tiheät laukaukset ohitetaan (kuusi pelaajaa sarjatulella kuormittaisi puhelinta)
+  const nowS = performance.now(); shotSnd = shotSnd.filter(t => nowS - t < 1000);
+  if (shotSnd.length < 28 && from.distanceTo(camera.position) < 260) { shotSnd.push(nowS); sound.shot(def, from); }
   for (let i = 4, k = 0; i + 3 < S.length; i += 4, k++) {
     const end = new THREE.Vector3(S[i], S[i + 1], S[i + 2]), code = S[i + 3];
     if (k < 3 || Math.random() < 0.3) fx.tracer(from, end);
@@ -333,21 +370,29 @@ socket.on('spawned', d => {
 socket.on('over', d => {
   game.over = true;
   $('overWhy').textContent = d.why;
-  $('overRows').innerHTML = d.rank.map((p, i) => `<tr class="${p.id === me.id ? 'me' : ''}"><td>${i + 1}.</td><td><i style="background:${p.color}"></i></td><td>${p.name.replace(/</g, '')}</td><td>${p.kills} kaatoa</td><td>${p.deaths} kuolemaa</td></tr>`).join('');
+  const teamRows = (d.teams || []).filter(t => t.members.length > 1).map(t => `<tr class="team"><td></td><td><i style="background:${t.color}"></i></td><td>${colorName(t.color)} TIIMI</td><td>${t.kills} kaatoa</td><td>${t.members.length} pelaajaa</td></tr>`).join('');
+  $('overRows').innerHTML = teamRows + d.rank.map((p, i) => `<tr class="${p.id === me.id ? 'me' : ''}"><td>${i + 1}.</td><td><i style="background:${p.color}"></i></td><td>${p.name.replace(/</g, '')}</td><td>${p.kills} kaatoa</td><td>${p.deaths} kuolemaa</td></tr>`).join('');
   $('over').classList.remove('hidden');
 });
 socket.on('newmatch', () => {
   game.over = false; $('over').classList.add('hidden');
   marks.clear(); weapons.clearProjectiles();
   me.alive = false; me.deadT = RESPAWN - 0.5; $('death').classList.add('hidden');
-  hud.center('UUSI OTTELU', 'ensimmäinen 15 kaatoon');
+  hud.center('UUSI OTTELU', `ensimmäinen tiimi ${KILL_LIMIT} kaatoon`);
 });
+socket.on('crates', list => objectives?.setCrates(list));
+socket.on('picked', d => {
+  if (d.by !== me.id) return;
+  const got = weapons.addAmmo(d.kind, d.give);
+  sound.pin(); hud.center(got > 0 ? (d.kind === 'rocket' ? `+${got} SINKOAMMUSTA` : `+${got} KRANAATTIA`) : 'AMMUKSET TÄYNNÄ', '', 1.4);
+});
+socket.on('chat', m => chat?.add(m, m.id === me.id));
 socket.on('disconnect', () => { if (game.playing) hud.center('YHTEYS KATKESI', 'yritetään uudelleen…', 4); });
 socket.on('connect', () => { if (game.code && me.id !== null) join(game.code); });
 
 // ---------- pelisilmukka ----------
 const clock = new THREE.Clock();
-let landKick = 0, stAcc = 0, shadowAcc = 0, shadowed = false, spawnYaw = 0, perfAcc = 0, fovCur = 78;
+let mapAcc = 1, landKick = 0, stAcc = 0, shadowAcc = 0, shadowed = false, spawnYaw = 0, perfAcc = 0, fovCur = 78;
 const sunProbe = new THREE.Vector3();
 const prof = { upd: 0, draw: 0 };
 function placeCamera(sh) {
@@ -416,6 +461,18 @@ function frame() {
 
   // muut
   avatars.update(rawDt);
+  objectives.update(rawDt);
+  chat?.update(rawDt);
+  if (me.alive && game.playing) {
+    const ci = objectives.nearCrate(player.pos); if (ci >= 0) net.emit('pickup', { i: ci });
+    const cp = objectives.atCheckpoint(player.pos);
+    mapScreen.show(!!cp);
+    if (cp && (mapAcc += rawDt) > 0.1) {
+      mapAcc = 0;
+      const ps = [...avatars.map.values()].map(a => ({ x: a.pos.x, z: a.pos.z, color: a.color, name: a.name, alive: a.alive }));
+      mapScreen.draw({ x: player.pos.x, z: player.pos.z, yaw: player.yaw }, me.color, ps, objectives);
+    }
+  } else mapScreen.show(false);
   fx.update(rawDt, camera);
   lighting.update(rawDt, camera);
   const fwd = camera.getWorldDirection(_v);
@@ -464,7 +521,7 @@ function frame() {
 
 // testejä ja vianetsintää varten
 window.__FPS = { get player() { return player; }, get weapons() { return weapons; }, get avatars() { return avatars; }, get marks() { return marks; }, get fx() { return fx; }, me, game, socket, world, camera, renderer,
-  get spawnCells() { return spawnCells; }, startPlaying, prof, join, perf, lighting,
-  look(yaw, pitch) { player.yaw = yaw; player.pitch = pitch; } };
+  get spawnCells() { return spawnCells; }, get objectives() { return objectives; }, startPlaying, prof, join, perf, lighting,
+  look(yaw, pitch) { player.yaw = yaw; player.pitch = pitch; }, topView: o => renderTopView(renderer, scene, world, o), MAP };
 
 load().catch(e => { console.error(e); progress('Lataus epäonnistui: ' + e.message, 0); });

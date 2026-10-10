@@ -296,7 +296,7 @@ export function buildWeaponModel(def) {
   return w;
 }
 
-function mergeStatic(container, special) {
+export function mergeStatic(container, special) {
   container.updateWorldMatrix(true, true);
   const inv = container.matrixWorld.clone().invert(), groups = new Map(), victims = [];
   const walk = o => {

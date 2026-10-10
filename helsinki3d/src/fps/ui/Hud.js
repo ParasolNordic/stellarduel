@@ -2,6 +2,7 @@
 // asepaikat, tapahtumasyöte, tilannetaulukko, kuolema- ja ottelun loppunäkymät sekä kiikarin reunamaski.
 // DOM päivitetään vain kun arvo muuttuu.
 import { WEAPONS, WEAPON_LABEL } from '../weapons/defs.js';
+import { colorName } from '../shared.js';
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -59,14 +60,24 @@ export class Hud {
     this.set('hint', hint);
   }
   timer(t, limit) { const r = Math.max(0, limit - t); this.set('timer', `${Math.floor(r / 60)}:${String(Math.floor(r % 60)).padStart(2, '0')}`); }
+  // tiimit = paitavärit; yläpalkissa tiimien yhteiset kaadot
+  static teams(players) {
+    const m = new Map();
+    for (const p of players) { const t = m.get(p.color) || { color: p.color, kills: 0, deaths: 0, members: [] }; t.kills += p.kills; t.deaths += p.deaths; t.members.push(p); m.set(p.color, t); }
+    return [...m.values()].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths);
+  }
   leaders(players, limit) {
-    const s = [...players].sort((a, b) => b.kills - a.kills).map(p => `<span style="border-color:${p.color}">${esc(p.name)} ${p.kills}</span>`).join('') + `<span style="border-color:transparent;color:#9aa6b2">/${limit}</span>`;
+    const s = Hud.teams(players).map(t => `<span style="border-color:${t.color}">${t.members.length > 1 ? colorName(t.color) + ' ×' + t.members.length : esc(t.members[0].name)} ${t.kills}</span>`).join('') +
+      `<span style="border-color:transparent;color:#9aa6b2">/${limit}</span>`;
     this.set('lead', s, 'innerHTML');
   }
-  board(players, myId, code) {
-    const rows = [...players].sort((a, b) => b.kills - a.kills || a.deaths - b.deaths).map(p => `<tr class="${p.id === myId ? 'me' : ''}"><td><i style="background:${p.color}"></i></td><td>${esc(p.name)}</td><td>${p.kills}</td><td>${p.deaths}</td></tr>`).join('');
+  board(players, myId, code, max = 6) {
+    const rows = Hud.teams(players).map(t => {
+      const head = `<tr class="team"><td><i style="background:${t.color}"></i></td><td>${colorName(t.color)}${t.members.length > 1 ? ' – TIIMI' : ''}</td><td>${t.kills}</td><td>${t.deaths}</td></tr>`;
+      return head + t.members.sort((a, b) => b.kills - a.kills).map(p => `<tr class="${p.id === myId ? 'me' : ''}"><td></td><td>${esc(p.name)}${p.alive ? '' : ' <small>†</small>'}</td><td>${p.kills}</td><td>${p.deaths}</td></tr>`).join('');
+    }).join('');
     this.set('brows', rows, 'innerHTML'); this.set('bcode', code || '');
-    this.set('bsub', players.length < 3 ? `Peliin mahtuu vielä ${3 - players.length} – jaa koodi ${code}` : '');
+    this.set('bsub', players.length < max ? `Peliin mahtuu vielä ${max - players.length} – jaa koodi ${code}. Sama paidan väri = sama tiimi.` : 'Sama paidan väri = sama tiimi.');
   }
   feed(html, mine) {
     const d = document.createElement('div'); d.innerHTML = html; if (mine) d.className = 'me';

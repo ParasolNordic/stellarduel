@@ -22,7 +22,10 @@ Selaimessa toimiva Three.js-pohjainen, päivänvalossa teksturoitu Helsinki 3D -
 ## Nordic Combat (`fps.html`, `src/fps/`, `server/fps-server.js`)
 Kolmen pelaajan moninpeli-FPS samassa maailmassa. Render-palvelu `nordiccombat`: REQUIRE_PASSWORD=1 ja GAME_PASSWORD (salaisuus, asetetaan vain Renderissä).
 - Nimi pelaajille näkyvissä paikoissa on Nordic Combat; Helsinki mainitaan vain lisenssin vaatimassa aineistolähteessä (CC BY 4.0).
-- Ohjaus: Välilyönti/hiiri ampuu, E hyppy, 1–7 aseet, Z kiikari; kosketuslaitteilla `ui/Touch.js` (tikku, katseluveto, napit).
+- Ohjaus: Välilyönti/hiiri ampuu, E hyppy, 1–7 aseet, Z kiikari, T tiimiviesti, Tab tilanne + näppäimet; kosketuslaitteilla `ui/Touch.js`.
+- Kartat: `/` = kartta 1 (`public/world`, nimiavaruus /fps), `/kartta2` = kartta 2 (`public/world2`, /fps2). 1–6 pelaajaa.
+- `shared.js` (palvelin + selain): paitavärit (sama väri = tiimi, ei omien tulitusta, tiimin kaadot 25), tarkastuspaikat ja laatikoiden mahdolliset paikat karttakohtaisesti.
+- `world/Objectives.js` tarkastuspaikat (karttanäyttö, `ui/MiniMap.js` piirtää yläkuvan latauksessa) ja ammuslaatikot; `ui/Chat.js` tiimiradio (LCD).
 - `physics/WorldCollider.js` BVH (three-mesh-bvh) suoraan piirtomesheihin: säteet ja kapselitörmäys. `player/PlayerController.js` liike.
 - `weapons/defs.js` asevalikoima datana; `WeaponModels.js` ohjelmalliset mallit (staattiset osat yhdistetään); `Viewmodel.js` ADS, rekyyli, animaatiot, kiikarin PiP-suurennos; `WeaponSystem.js` tulitus, osumat, raketit, kranaatit.
 - `fx/Effects.js` partikkelit, räjähdykset; `fx/Marks.js` pysyvät kraatterit/seinäjäljet/kivet siemenluvusta (palvelin tallentaa, myöhään liittyvät saavat listan).

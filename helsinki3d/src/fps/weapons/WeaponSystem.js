@@ -28,6 +28,11 @@ export class WeaponSystem {
     this.vm.lift = 1;
   }
   get def() { return this.defs[this.idx]; }
+  // ammuslaatikosta: kranaatteja tai sinkoammuksia (yläraja estää loputtoman keräilyn)
+  addAmmo(kind, n) {
+    if (kind === 'grenade') { const g = this.grenades; this.grenades = Math.min(6, this.grenades + n); return this.grenades - g; }
+    const a = this.ammo[6], before = a.reserve; a.reserve = Math.min(8, a.reserve + n); return a.reserve - before;
+  }
   reset() {
     this.ammo = this.defs.map(d => ({ mag: d.mag, reserve: d.reserve }));
     this.grenades = GRENADE.count; this.state = 'ready'; this.timer = 0; this.bloom = 0;
@@ -176,7 +181,9 @@ export class WeaponSystem {
         const maxD = wh ? wh.dist : 350;
         const ph = this.avatars.raycast(origin, dir, maxD);
         let end, code = 0;
-        if (ph) {
+        if (ph && ph.color === this.myColor) {
+          end = ph.point; code = 3;                       // oma tiimiläinen: luoti pysähtyy, ei vahinkoa
+        } else if (ph) {
           end = ph.point; code = 3;
           const f = d.falloff, k = ph.dist <= f[0] ? 1 : ph.dist >= f[1] ? f[2] : 1 + (f[2] - 1) * (ph.dist - f[0]) / (f[1] - f[0]);
           const dmg = d.dmg * k * (ph.head ? d.head : 1);

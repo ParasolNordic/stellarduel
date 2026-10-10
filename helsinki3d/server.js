@@ -92,8 +92,8 @@ const server = http.createServer(app);
 if (GAME) {
   // moninpeliyhteys hyväksytään vain kirjautuneelta selaimelta (sama eväste)
   const io = new Server(server, { pingInterval: 10000, pingTimeout: 20000, allowRequest: (req, cb) => cb(null, authed(req)) });
-  attachFps(io);                                                   // kartta 1
-  attachFps(io, { ns: '/fps2', path: '/kartta2' });                // kartta 2
+  attachFps(io, { ns: '/fps', path: '/', map: 1 });                // kartta 1
+  attachFps(io, { ns: '/fps2', path: '/kartta2', map: 2 });        // kartta 2
 }
 const PORT = process.env.PORT || 3010;
 server.listen(PORT, () => console.log(`${GAME ? 'Nordic Combat' : 'Helsinki 3D'} portissa ${PORT}${GAME && !PASSWORD ? ' – GAME_PASSWORD puuttuu!' : ''}`));

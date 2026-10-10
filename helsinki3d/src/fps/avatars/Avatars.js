@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { nameTexture } from '../fx/textures.js';
-import { buildWeaponModel } from '../weapons/WeaponModels.js';
+import { buildWeaponModel, mergeStatic } from '../weapons/WeaponModels.js';
 import { WEAPONS } from '../weapons/defs.js';
 
 const DELAY = 110;          // ms
@@ -18,7 +18,8 @@ function buildSoldier(color) {
   const M = {
     cloth: new THREE.MeshStandardMaterial({ color: 0x4d5444, roughness: 0.92 }),
     cloth2: new THREE.MeshStandardMaterial({ color: 0x3b4136, roughness: 0.92 }),
-    vest: new THREE.MeshStandardMaterial({ color: c.clone().multiplyScalar(0.75), roughness: 0.7 }),
+    // liivi täysin pelaajan värissä ja kevyesti itsevalaiseva: erottuu yhtä hyvin varjossa kaikilla väreillä
+    vest: new THREE.MeshStandardMaterial({ color: c, roughness: 0.6, emissive: c, emissiveIntensity: 0.35 }),
     helmet: new THREE.MeshStandardMaterial({ color: 0x3e4535, roughness: 0.75 }),
     dark: new THREE.MeshStandardMaterial({ color: 0x1a1b1d, roughness: 0.7 }),
     face: new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.85 }),
@@ -58,6 +59,10 @@ function buildSoldier(color) {
   const la = mesh(arms, armGeo, M.cloth, -0.16, -0.08, -0.22); la.rotation.set(0.25, -0.6, 0);
   const fa = mesh(arms, RB(0.09, 0.09, 0.3, 0.035), M.cloth, -0.05, -0.12, -0.42); fa.rotation.set(0.1, -0.2, 0);
   const gunHolder = new THREE.Group(); gunHolder.position.set(0.12, -0.08, -0.32); arms.add(gunHolder);
+  // staattiset osat yhdistetään materiaaleittain liikkuvien osien sisällä (~40 → ~12 piirtokutsua per hahmo)
+  const special = new Set([hips, torso, neck, head, arms, gunHolder, ...legs.flatMap(l => [l.leg, l.shin])]);
+  for (const cnt of [root, hips, torso, neck, head, arms, ...legs.flatMap(l => [l.leg, l.shin])]) mergeStatic(cnt, special);
+  root.traverse(o => { if (o.isMesh) o.castShadow = true; });
   return { root, hips, legs, torso, neck, head, arms, gunHolder, mats: M };
 }
 
@@ -81,8 +86,11 @@ function raySphere(o, d, c, r) {
 
 export class Avatars {
   constructor(scene) {
-    this.scene = scene; this.map = new Map();
+    this.scene = scene; this.map = new Map(); this.myColor = null;
   }
+  // omien tiimiläisten nimikyltit näkyvät seinien läpi
+  setMyColor(c) { this.myColor = c; for (const a of this.map.values()) this.styleTag(a); }
+  styleTag(a) { const team = a.color === this.myColor; a.tag.material.depthTest = !team; a.tag.renderOrder = team ? 20 : 0; a.tag.material.needsUpdate = true; }
   ensure(p) {
     let a = this.map.get(p.id);
     if (a) { if (a.name !== p.name || a.color !== p.color) { this.remove(p.id); a = null; } else return a; }
@@ -93,7 +101,7 @@ export class Avatars {
     this.scene.add(s.root);
     a = { id: p.id, name: p.name, color: p.color, s, tag, buf: [], pos: new THREE.Vector3(), yaw: 0, pitch: 0, w: -1, alive: false, prot: false,
       phase: 0, speed: 0, deadT: 0, guns: new Map(), hp: 100, last: new THREE.Vector3(), lastShot: 0 };
-    this.map.set(p.id, a);
+    this.map.set(p.id, a); this.styleTag(a);
     return a;
   }
   remove(id) { const a = this.map.get(id); if (!a) return; this.scene.remove(a.s.root); this.map.delete(id); }
@@ -183,7 +191,7 @@ export class Avatars {
   // kapselitesti ammuksille (raketin suora osuma)
   near(p, r) {
     for (const a of this.map.values()) {
-      if (!a.alive) continue;
+      if (!a.alive || a.color === this.myColor) continue;
       const dy = THREE.MathUtils.clamp(p.y - a.pos.y, 0.2, 1.7);
       if (Math.hypot(p.x - a.pos.x, p.y - (a.pos.y + dy), p.z - a.pos.z) < r + BODY_R) return a;
     }
