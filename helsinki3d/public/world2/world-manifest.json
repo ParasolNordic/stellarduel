@@ -1,0 +1,191 @@
+{
+  "source": "City model export (FME OBJ/MTL/PNG from CityGML), user-supplied",
+  "crs": "EPSG:3879",
+  "coordinates": "Three.js x=easting-origin.x, y=height-origin.z, z=-(northing-origin.y)",
+  "units": "metre",
+  "height_mode": "absolute (sea level)",
+  "origin_epsg3879": {
+    "easting": 25497455.263,
+    "northing": 6673064.126,
+    "height": 0.0
+  },
+  "bounds_epsg3879": {
+    "min": [
+      25497181.516683,
+      6672632.296359,
+      0.193
+    ],
+    "max": [
+      25497729.010264,
+      6673495.956289,
+      72.33
+    ]
+  },
+  "bounds_local": {
+    "min": [
+      -273.746316999197,
+      0.193,
+      -431.83028899971396
+    ],
+    "max": [
+      273.7472640015185,
+      72.33,
+      431.8296410003677
+    ]
+  },
+  "size_m": {
+    "x": 547.4935810007155,
+    "y": 72.137,
+    "z": 863.6599300000817
+  },
+  "layers": {
+    "buildings": {
+      "file": "buildings.glb",
+      "byte_size": 20195232,
+      "texture_atlases": 4,
+      "atlas_size": 4096,
+      "draw_primitives": 5,
+      "triangles": 41867,
+      "primitives": [
+        {
+          "material": "buildings-atlas-0",
+          "triangles": 2728
+        },
+        {
+          "material": "buildings-atlas-1",
+          "triangles": 4974
+        },
+        {
+          "material": "buildings-atlas-2",
+          "triangles": 5973
+        },
+        {
+          "material": "buildings-atlas-3",
+          "triangles": 10577
+        },
+        {
+          "material": "untextured",
+          "triangles": 17615
+        }
+      ],
+      "textured_materials": 4191,
+      "untextured_triangles": 17615,
+      "dropped_triangles": {
+        "repeated_vertex": 0,
+        "zero_area": 0
+      },
+      "uv_outside_0_1_clamped": 0,
+      "textures": {
+        "source_images": 4191,
+        "source_megapixels": 237.5,
+        "after_uv_crop_megapixels": 235.9,
+        "atlas_megapixels_used": 56.0,
+        "scale_min": 0.027,
+        "scale_median": 0.508,
+        "scale_max": 1.0,
+        "images_unscaled": 39,
+        "texel_density_cap_px_per_m2": 140.8,
+        "texel_cap_m_per_px": 0.0843,
+        "mean_m_per_px_weighted_area": 0.0844
+      }
+    },
+    "terrain": {
+      "file": "terrain.glb",
+      "byte_size": 21032468,
+      "texture_atlases": 2,
+      "atlas_size": 4096,
+      "draw_primitives": 2,
+      "triangles": 146301,
+      "primitives": [
+        {
+          "material": "terrain-atlas-0",
+          "triangles": 75373
+        },
+        {
+          "material": "terrain-atlas-1",
+          "triangles": 70928
+        }
+      ],
+      "textured_materials": 179,
+      "untextured_triangles": 0,
+      "dropped_triangles": {
+        "repeated_vertex": 17,
+        "zero_area": 2
+      },
+      "uv_outside_0_1_clamped": 157,
+      "textures": {
+        "source_images": 179,
+        "source_megapixels": 80.3,
+        "after_uv_crop_megapixels": 78.1,
+        "atlas_megapixels_used": 29.2,
+        "scale_min": 0.612,
+        "scale_median": 0.612,
+        "scale_max": 0.612,
+        "images_unscaled": 0,
+        "mean_m_per_px_weighted_area": 0.1205,
+        "nodata_images_filled": 86
+      }
+    }
+  },
+  "origin_wgs84": {
+    "lat": 60.17045,
+    "lon": 24.954159
+  },
+  "area_polygon_local_xz": [
+    [
+      -273.746,
+      355.435
+    ],
+    [
+      -270.767,
+      -398.901
+    ],
+    [
+      232.203,
+      -431.83
+    ],
+    [
+      273.747,
+      199.883
+    ],
+    [
+      109.476,
+      431.8
+    ],
+    [
+      20.445,
+      428.119
+    ],
+    [
+      -36.227,
+      431.83
+    ],
+    [
+      -97.337,
+      429.301
+    ],
+    [
+      -97.052,
+      356.125
+    ],
+    [
+      -273.746,
+      355.435
+    ]
+  ],
+  "area_polygon_note": "Export area (non-rectangular). Terrain exists only inside it; bounds_local is its bounding box.",
+  "source_stats": {
+    "vertices": 118104,
+    "uvs": 124285,
+    "polygons": 188187,
+    "ngons_triangulated": 0,
+    "materials": 4370,
+    "undefined_materials": 0,
+    "missing_texture_files": 0
+  },
+  "limits": [
+    "Visible textured geometry; use BVH on render meshes for collisions (see GRAFIIKKA-PERUSOHJE.md).",
+    "No street centrelines, trees or separate collision meshes in the source.",
+    "Orthophoto shows streets and water as pixels only."
+  ]
+}

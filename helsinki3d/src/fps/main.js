@@ -35,7 +35,12 @@ renderer.autoClear = false;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(78, innerWidth / innerHeight, 0.05, 4000);
 camera.rotation.order = 'YXZ';
-const world = new CityWorld(scene, { baseUrl: 'world/' });
+// kartta valitaan osoitteen polusta: / = kartta 1, /kartta2 = kartta 2 (oma maailma ja oma moninpelikanava)
+const MAP = /^\/kartta2\/?$/.test(location.pathname)
+  ? { id: 2, world: '/world2/', ns: '/fps2', path: '/kartta2' }
+  : { id: 1, world: '/world/', ns: '/fps', path: '/' };
+document.querySelectorAll('[data-map]').forEach(a => a.classList.toggle('active', +a.dataset.map === MAP.id));
+const world = new CityWorld(scene, { baseUrl: MAP.world });
 const lighting = new Lighting(renderer, scene);
 const perf = new Perf(renderer);
 const sound = new Sound();
@@ -63,7 +68,7 @@ function applyQuality(id) {
 addEventListener('resize', () => { applyRendererQuality(renderer, QUALITY_PRESETS[qualityId]); if (params.get('pr')) renderer.setPixelRatio(+params.get('pr')); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); if (vm) vm.resize(); });
 
 // ---------- verkko ----------
-const socket = io('/fps', { transports: ['websocket', 'polling'] });
+const socket = io(MAP.ns, { transports: ['websocket', 'polling'] });
 const net = { emit: (ev, d) => { if (me.id !== null) socket.emit(ev, d); } };
 
 // ---------- lataus ----------
@@ -113,7 +118,7 @@ async function load() {
 function computeSpawnCells() {
   const b = world.bounds, out = [];
   for (let x = b.min.x + 10; x < b.max.x - 10; x += 3) for (let z = b.min.z + 10; z < b.max.z - 10; z += 3) {
-    const g = world.heightAt(x, z); if (g === null) continue;
+    const g = world.heightAt(x, z); if (g === null || !player.validXZ(x, z, 6)) continue;
     let ok = true;
     for (let k = 0; k < 8 && ok; k++) { const a = k / 8 * Math.PI * 2; const sx = x + Math.cos(a) * 2.2, sz = z + Math.sin(a) * 2.2; const s = world.surfaceAt(sx, sz), gg = world.heightAt(sx, sz); if (s === null || gg === null || s - gg > 0.4 || Math.abs(gg - g) > 0.8) ok = false; }
     if (!ok || world.surfaceAt(x, z) - g > 0.3) continue;
@@ -158,7 +163,7 @@ function join(code) {
     if (!r || r.err) return lobbyMsg(r ? r.err : 'Yhteysvirhe', true);
     me.id = r.id; me.name = r.name; me.color = r.color; me.alive = false; me.deadT = RESPAWN;
     weapons.myId = r.id; game.code = r.code; game.t = r.t || 0;
-    if (!game.url) game.url = location.origin + '/?k=' + r.code;
+    if (!game.url) game.url = location.origin + MAP.path + '?k=' + r.code;
     marks.clear(); for (const m of r.marks || []) marks.add(m);
     history.replaceState(null, '', '?k=' + r.code + (params.get('q') ? '&q=' + params.get('q') : ''));
     $('lobbyStart').classList.add('hidden'); $('lobbyShare').classList.remove('hidden');

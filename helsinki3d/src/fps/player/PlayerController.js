@@ -20,6 +20,21 @@ export class PlayerController {
     this._a = new THREE.Vector3(); this._b = new THREE.Vector3(); this._wish = new THREE.Vector3(); this._dl = new THREE.Vector3();
     const b = world.bounds;
     this.lim = { x0: b.min.x + 3, x1: b.max.x - 3, z0: b.min.z + 3, z1: b.max.z - 3 };
+    // vientialueen monikulmio (jos manifestissa): maastoa on vain sen sisällä, joten liike rajataan 3 m reunasta
+    this.poly = world.manifest && world.manifest.area_polygon_local_xz || null;
+    this.lastGround = new THREE.Vector3();
+  }
+  // onko vaakapiste pelialueella (monikulmion sisällä vähintään margin metrin päässä reunasta)
+  validXZ(x, z, margin = 3) {
+    const P = this.poly; if (!P) return true;
+    let inside = false, dmin = Infinity;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      const [xi, zi] = P[i], [xj, zj] = P[j];
+      if ((zi > z) !== (zj > z) && x < (xj - xi) * (z - zi) / (zj - zi) + xi) inside = !inside;
+      const dx = xj - xi, dz = zj - zi, t = Math.max(0, Math.min(1, ((x - xi) * dx + (z - zi) * dz) / (dx * dx + dz * dz || 1)));
+      dmin = Math.min(dmin, Math.hypot(x - (xi + dx * t), z - (zi + dz * t)));
+    }
+    return inside && dmin >= margin;
   }
   teleport(p, yaw = this.yaw) { this.pos.copy(p); this.vel.set(0, 0, 0); this.yaw = yaw; this.pitch = 0; this.onGround = false; }
   look(dx, dy) { this.yaw -= dx; this.pitch = THREE.MathUtils.clamp(this.pitch - dy, -1.5, 1.5); }
@@ -46,9 +61,15 @@ export class PlayerController {
     let grounded = false;
     for (let i = 0; i < steps; i++) {
       this.vel.y -= GRAV * h;
+      const px = this.pos.x, pz = this.pos.z;
       this.pos.addScaledVector(this.vel, h);
       this.pos.x = THREE.MathUtils.clamp(this.pos.x, this.lim.x0, this.lim.x1);
       this.pos.z = THREE.MathUtils.clamp(this.pos.z, this.lim.z0, this.lim.z1);
+      if (this.poly && !this.validXZ(this.pos.x, this.pos.z)) {      // alueen reuna: liu'utaan reunaa pitkin
+        if (this.validXZ(this.pos.x, pz)) { this.pos.z = pz; this.vel.z = 0; }
+        else if (this.validXZ(px, this.pos.z)) { this.pos.x = px; this.vel.x = 0; }
+        else { this.pos.x = px; this.pos.z = pz; this.vel.x = this.vel.z = 0; }
+      }
       const a = this._a.copy(this.pos).setY(this.pos.y + RADIUS), b = this._b.copy(this.pos).setY(this.pos.y + HEIGHT - RADIUS);
       const d = this.collider.collideCapsule(a, b, RADIUS, this._dl);
       this.pos.add(d);
@@ -64,7 +85,9 @@ export class PlayerController {
     if (gy !== null && this.pos.y < gy - 0.5) { this.pos.y = gy; this.vel.y = Math.max(0, this.vel.y); grounded = true; }
 
     if (grounded && !this.onGround && this.airTime > 0.25 && this.onLand) this.onLand(Math.min(1, this.airTime / 1.0));
-    if (grounded) { this.airTime = 0; if (this.vel.y < 0) this.vel.y = 0; } else this.airTime += dt;
+    if (grounded) { this.airTime = 0; if (this.vel.y < 0) this.vel.y = 0; this.lastGround.copy(this.pos); } else this.airTime += dt;
+    // turvaverkko: jos pelaaja putoaa mallin aukosta maailman alle, palautetaan viimeiseen maakohtaan
+    if (this.pos.y < this.world.bounds.min.y - 30 && this.lastGround.lengthSq() > 0) { this.pos.copy(this.lastGround); this.vel.set(0, 0, 0); }
     this.onGround = grounded || (this.onGround && this.airTime < 0.08);
     const sp = Math.hypot(this.vel.x, this.vel.z);
     this.moving = this.onGround ? Math.min(1, sp / WALK) : 0;

@@ -180,3 +180,7 @@ body.touch #board, body.touch #over { top: 12%; }
 body.touch #hud { z-index: 14; }
 .ovl { pointer-events: none; z-index: 9; }
 .tb.big { font-size: 12px; }
+
+.maps { display: flex; gap: 6px; margin: -6px 0 14px; }
+.maps a { flex: 1; text-align: center; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; padding: 7px; border-radius: 8px; border: 1px solid var(--line); color: var(--dim); text-decoration: none; }
+.maps a.active { border-color: var(--acc); color: var(--acc); }

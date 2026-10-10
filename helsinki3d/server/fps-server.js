@@ -12,9 +12,9 @@ const fin = v => typeof v === 'number' && Number.isFinite(v);
 const vec3 = a => Array.isArray(a) && a.length === 3 && a.every(fin);
 const r2 = v => Math.round(v * 100) / 100;
 
-export function attachFps(io) {
+export function attachFps(io, { ns = '/fps', path = '/' } = {}) {
   const rooms = new Map();
-  const nsp = io.of('/fps');
+  const nsp = io.of(ns);
   const newCode = () => { for (;;) { let c = ''; for (let i = 0; i < 4; i++) c += LETTERS[(Math.random() * LETTERS.length) | 0]; if (!rooms.has(c)) return c; } };
 
   function makeRoom(code) {
@@ -79,7 +79,7 @@ export function attachFps(io) {
       leave();
       const r = makeRoom(newCode());
       const origin = d && typeof d.origin === 'string' && /^https?:\/\/[^\s]+$/.test(d.origin) ? d.origin : '';
-      const url = origin + '/?k=' + r.code;
+      const url = origin + path + '?k=' + r.code;
       let qr = ''; try { qr = await QRCode.toDataURL(url, { margin: 1, width: 240 }); } catch (e) { /* ilman QR-koodia */ }
       cb({ code: r.code, url, qr });
     });
