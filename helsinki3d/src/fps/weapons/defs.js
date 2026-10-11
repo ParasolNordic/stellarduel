@@ -72,4 +72,4 @@ export const WEAPONS = [
 ];
 export const GRENADE = { name: 'KÄSIKRANAATTI', count: 3, fuse: 2.6, speed: 17, up: 3.5, radius: 0.07 };
 // kuoleman syy kill feediin (palvelin käyttää indeksejä 0–6 aseille, 6 = raketti, 7 = kranaatti)
-export const WEAPON_LABEL = i => i === 7 ? 'KRANAATTI' : i === 8 ? 'RWS-KK' : i === 9 ? 'H6-TYKKI' : i === 10 ? 'AJONEUVO' : (WEAPONS[i] ? WEAPONS[i].short : '?');
+export const WEAPON_LABEL = i => i === 7 ? 'KRANAATTI' : i === 8 ? 'RWS-TYKKI' : i === 9 ? 'H6-TYKKI' : i === 10 ? 'AJONEUVO' : i === 11 ? 'DROONI' : (WEAPONS[i] ? WEAPONS[i].short : '?');

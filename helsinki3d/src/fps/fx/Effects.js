@@ -128,6 +128,29 @@ export class Effects {
     // kameran tärinä etäisyyden mukaan
     if (listenerPos) { const d = listenerPos.distanceTo(p); this.shake = Math.max(this.shake, Math.min(1.2, (big ? 14 : 11) / (d + 4))); }
   }
+  // konetykin räjähtävä ammus: pieni välähdys, tulipallo, savu ja pöly (kevyt, toistuu tiheään)
+  miniBlast(p, n) {
+    const P = this.particles, pa = p.toArray(), up = n.y > 0.5 ? new THREE.Vector3(0, 1, 0) : n.clone();
+    this.flashLight(new THREE.Vector3().copy(p).addScaledVector(n, 0.6), 30, 0.18, 0xffa050, 18);
+    P.emit({ additive: true, p: pa, life: 0.1, size: 3.2, size1: 4.5, color: [1, 0.92, 0.75], frame: FRAME.FLASH, fadeIn: 0 });
+    for (let i = 0; i < 8; i++) {
+      const d = new THREE.Vector3(R(-1, 1), R(0, 1), R(-1, 1)).normalize().add(up.clone().multiplyScalar(0.6)).normalize();
+      P.emit({ additive: true, p: pa, v: d.multiplyScalar(R(2, 6)).toArray(), life: R(0.25, 0.5), size: R(0.6, 1.1), size1: R(1.4, 2.2), color: [1, 0.75, 0.4], color1: [0.5, 0.12, 0.02], frame: FRAME.FIRE, drag: 4, fadeIn: 0 });
+    }
+    for (let i = 0; i < 6; i++) {
+      const d = new THREE.Vector3(R(-1, 1), R(0, 1), R(-1, 1)).normalize().add(up);
+      P.emit({ p: pa, v: d.multiplyScalar(R(0.8, 2.5)).toArray(), life: R(2.5, 4.5), size: R(0.8, 1.4), size1: R(2.5, 4), color: [0.2, 0.19, 0.18], color1: SMOKE, alpha: 0.55, alpha1: 0, frame: FRAME.SMOKE, drag: 1.5, g: 0.6, fadeIn: 0.04 });
+    }
+    for (let i = 0; i < 14; i++) {
+      const v = new THREE.Vector3(R(-1, 1), R(0, 1), R(-1, 1)).normalize().add(up.clone().multiplyScalar(0.3)).multiplyScalar(R(6, 18));
+      P.emit({ additive: true, p: pa, v: v.toArray(), life: R(0.2, 0.6), size: R(0.025, 0.045), stretch: 0.02, frame: FRAME.SPARK, color: [1, 0.8, 0.45], color1: [1, 0.35, 0.1], g: -9.8, drag: 0.4, fadeIn: 0 });
+    }
+    for (let i = 0; i < 4; i++) this.addDebris(p.clone().addScaledVector(n, 0.2), new THREE.Vector3(R(-1, 1), R(0.4, 1), R(-1, 1)).normalize().multiplyScalar(R(3, 8)), R(0.03, 0.07));
+  }
+  // vaurioituneen ajoneuvon savu
+  smokePuff(p) {
+    this.particles.emit({ p: p.toArray(), v: [R(-0.3, 0.3), R(1.5, 2.5), R(-0.3, 0.3)], life: R(3, 5), size: R(0.8, 1.2), size1: R(3, 4.5), color: [0.12, 0.12, 0.12], color1: SMOKE, alpha: 0.6, alpha1: 0, frame: FRAME.SMOKE, drag: 1.2, g: 0.8, fadeIn: 0.05 });
+  }
   addDebris(p, v, s) {
     if (this.debris.length >= this.debrisMax) this.debris.shift();
     this.debris.push({ p, v, s, r: new THREE.Euler(R(0, 6), R(0, 6), 0), w: new THREE.Vector3(R(-12, 12), R(-12, 12), R(-12, 12)), t: R(4, 7), rest: false });

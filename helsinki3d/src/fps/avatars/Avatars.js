@@ -111,7 +111,7 @@ export class Avatars {
     const now = performance.now();
     if (alive && !a.alive) { a.buf.length = 0; a.pos.fromArray(pos); a.deadT = 0; }   // syntyi uudelleen: ei interpolointia vanhasta paikasta
     a.buf.push({ t: now, p: pos, yaw, pitch }); if (a.buf.length > 30) a.buf.shift();
-    a.alive = !!alive; a.prot = !!prot; a.hp = hp; a.inVeh = !!(flags & 4);   // ajoneuvossa: piilossa, osumat menevät ajoneuvolle
+    a.alive = !!alive; a.prot = !!prot; a.hp = hp; a.inVeh = !!(flags & 4); a.riding = !!(flags & 8);   // ajoneuvossa: piilossa, osumat menevät ajoneuvolle
     if (w !== a.w) this.setGun(a, w);
   }
   setGun(a, w) {
@@ -150,6 +150,16 @@ export class Avatars {
       a.speed += (Math.min(9, vel) - a.speed) * Math.min(1, dt * 10);
       s.root.position.copy(a.pos);
       if (a.alive && a.inVeh) { s.root.visible = false; a.tag.visible = false; }
+      else if (a.alive && a.riding) {
+        // moottoripyörän selässä: istuma-asento, keho pyörän suuntaan ja satulan korkeudelle
+        const v = this.rideLookup && this.rideLookup(a.id);
+        if (v) { s.root.position.copy(v.pos); s.root.position.y += 0.1; s.root.rotation.set(-v.pi, v.h + Math.PI, -v.ro); }
+        else s.root.rotation.set(0, a.yaw, 0);
+        s.root.visible = true; a.tag.visible = true;
+        s.legs[0].leg.rotation.x = s.legs[1].leg.rotation.x = 1.3; s.legs[0].shin.rotation.x = s.legs[1].shin.rotation.x = -1.4;
+        s.hips.position.y = 0.92; s.torso.rotation.x = 0.25 - a.pitch * 0.35; s.arms.rotation.x = a.pitch * 0.65; s.neck.rotation.x = a.pitch * 0.3;
+        if (v) a.pos.copy(s.root.position);
+      }
       else if (a.alive) {
         s.root.visible = true; s.root.rotation.set(0, a.yaw, 0);
         a.phase += a.speed * dt * 1.5;

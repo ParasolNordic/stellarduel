@@ -180,10 +180,15 @@ export class WeaponSystem {
         const wh = this.collider.raycast(origin, dir, 350);
         const maxD = wh ? wh.dist : 350;
         let ph = this.avatars.raycast(origin, dir, maxD);
-        const vh = this.vehicleRay(origin, dir, ph ? ph.dist : maxD);
+        let vh = this.vehicleRay(origin, dir, ph ? ph.dist : maxD);
         if (vh) ph = null;
+        const dh = this.drones && this.drones.raycast(origin, dir, vh ? vh.dist : ph ? ph.dist : maxD);
+        if (dh) { ph = null; vh = null; }
         let end, code = 0;
-        if (vh) {
+        if (dh) {
+          end = dh.point; code = 3; this.net.emit('dhit', { t: dh.id }); this.fx.miniBlast(dh.point, dir.clone().negate());
+          if (this.onLocalHit) this.onLocalHit({ id: -100, head: false, dmg: 1 });
+        } else if (vh) {
           end = vh.point; code = 2;
           if (!vh.friendly) { const h = vhits.get(vh.id) || 0; vhits.set(vh.id, h + d.dmg); }
           this.fx.impact(vh.point, dir.clone().negate(), 'buildings', { size: 0.08 });
@@ -234,8 +239,10 @@ export class WeaponSystem {
     const wh = this.collider.raycast(origin, dir, range);
     const maxD = wh ? wh.dist : range;
     let ph = this.avatars.raycast(origin, dir, maxD);
-    const vh = this.vehicleRay(origin, dir, ph ? ph.dist : maxD, excludeVehicle);
+    let vh = this.vehicleRay(origin, dir, ph ? ph.dist : maxD, excludeVehicle);
     if (vh) ph = null;
+    const dh = this.drones && this.drones.raycast(origin, dir, vh ? vh.dist : ph ? ph.dist : maxD);
+    if (dh) { this.net.emit('dhit', { t: dh.id }); return { end: dh.point, code: 3 }; }
     if (vh) {
       if (!vh.friendly) { this.net.emit('vhit', { v: vh.id, dmg, w }); if (this.onLocalHit) this.onLocalHit({ id: -vh.id, head: false, dmg }); }
       this.fx.impact(vh.point, dir.clone().negate(), 'buildings', { size: 0.14 });

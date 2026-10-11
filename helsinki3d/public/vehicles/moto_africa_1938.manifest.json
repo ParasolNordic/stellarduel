@@ -1,0 +1,170 @@
+{
+  "name": "MOTO AFRICA 1938 (low poly)",
+  "file": "moto_africa_1938.glb",
+  "source": {
+    "title": "MOTO AFRICA 1938 low poly",
+    "author": "uchronia",
+    "url": "https://skfb.ly/osKNT",
+    "license": "CC BY-NC-ND 4.0",
+    "licenseUrl": "http://creativecommons.org/licenses/by-nc-nd/4.0/"
+  },
+  "attribution": "\"MOTO AFRICA 1938 low poly\" (https://skfb.ly/osKNT) by uchronia is licensed under CC Attribution-NonCommercial-NoDerivs (http://creativecommons.org/licenses/by-nc-nd/4.0/). Materiaalit muunnettu glTF metal/rough -muotoon.",
+  "technicalChange": "Vain materiaalien muoto: KHR_materials_pbrSpecularGlossiness -> metal/rough (gltf-transform metalrough), jotta Three.js r180 näyttää tekstuurit. Geometria, luuranko, UV:t ja kuvat ennallaan.",
+  "licenseLimits": [
+    "NC: vain ei-kaupalliseen käyttöön.",
+    "ND: mallia ei saa muokata ja jakaa muokattuna (ei kevennystä, osien erottelua tai värimuutoksia tiedostoon).",
+    "Liikuttaminen luilla, sijoittelu ja valaistus pelissä tehdään ajonaikaisesti ilman tiedoston muutoksia."
+  ],
+  "units": "m",
+  "axes": {
+    "up": "+Y",
+    "forward": "+Z",
+    "left": "+X"
+  },
+  "origin": "maan tasolla moottorin kohdalla (akselivälin keskikohta on z = 0,286)",
+  "bounds": {
+    "min": [
+      -0.503,
+      0.0,
+      -1.04
+    ],
+    "max": [
+      0.503,
+      1.193,
+      1.543
+    ]
+  },
+  "dimensions": {
+    "length": 2.58,
+    "handlebarWidth": 1.01,
+    "height": 1.19,
+    "wheelbase": 1.737,
+    "wheelRadiusFront": 0.386,
+    "wheelRadiusRear": 0.392
+  },
+  "stats": {
+    "triangles": 14383,
+    "trianglesVisible": 14371,
+    "drawCalls": 5,
+    "drawCallsVisible": 4,
+    "skinnedMeshes": 5,
+    "bones": 11,
+    "textures": "1024² ×3, 512² ×4 PNG",
+    "fileSizeBytes": 4658620
+  },
+  "bones": {
+    "FRONT-TIRE_07": {
+      "role": "etupyörä",
+      "pivotWorld": [
+        0.005,
+        0.386,
+        1.154
+      ],
+      "spin": "rotation.x += matka / 0.386"
+    },
+    "REAR-TIRE_09": {
+      "role": "takapyörä",
+      "pivotWorld": [
+        0.005,
+        0.392,
+        -0.583
+      ],
+      "spin": "rotation.x += matka / 0.392"
+    },
+    "Fouche_06": {
+      "role": "etuhaarukka, ohjaustanko ja ajovalo",
+      "pivotWorld": [
+        0.005,
+        1.015,
+        0.734
+      ],
+      "steerAxisLocal": [
+        0.0,
+        -0.832,
+        0.555
+      ],
+      "steer": "quaternion.setFromAxisAngle(steerAxisLocal, kulma), positiivinen = oikealle (−X)",
+      "suggestedMaxDeg": 35
+    },
+    "kick_08": {
+      "role": "potkukäynnistin",
+      "pivotWorld": [
+        0.263,
+        0.279,
+        -0.042
+      ],
+      "kick": "rotation.x 0 → −45° → 0"
+    },
+    "l-gardepied_05": {
+      "role": "vasen jalkatappi",
+      "pivotWorld": [
+        0.154,
+        0.274,
+        -0.291
+      ]
+    },
+    "r-gardepied_04": {
+      "role": "oikea jalkatappi",
+      "pivotWorld": [
+        -0.154,
+        0.274,
+        -0.291
+      ]
+    },
+    "Hip_02": {
+      "role": "kuljettajan lantio (kiinnityspiste ajajalle)",
+      "pivotWorld": [
+        0.0,
+        1.042,
+        -0.013
+      ]
+    },
+    "MOTO_01": {
+      "role": "runko"
+    },
+    "Body_00": {
+      "role": "juuri"
+    }
+  },
+  "attachPoints": {
+    "Headlight": {
+      "parentBone": "Fouche_06",
+      "world": [
+        0.008,
+        1.0,
+        1.04
+      ],
+      "direction": "+Z"
+    },
+    "RiderEye": {
+      "world": [
+        0.0,
+        1.74,
+        0.05
+      ]
+    }
+  },
+  "runtime": [
+    "Piilota näkymätön apuverkko: materiaali MOTO_FOR_M3_INVISIBLE (mesh.visible = false). Piirtokutsuja jää 4.",
+    "Pinnat: materiaalissa MOTO_FOR_M3_rayon alphaTest = 0.5, transparent = false, jolloin pinnat varjostuvat ja lajittelu toimii.",
+    "Kallistus käännöksissä: kierrä mallin isäntäryhmää Z-akselin ympäri maatason kohdalta.",
+    "Osumiin riittää laatikko (collision)."
+  ],
+  "collision": {
+    "boxes": [
+      {
+        "name": "bike",
+        "min": [
+          -0.5,
+          0.0,
+          -1.04
+        ],
+        "max": [
+          0.5,
+          1.19,
+          1.54
+        ]
+      }
+    ]
+  }
+}

@@ -25,13 +25,14 @@
   <div id="slots"></div>
   <div id="hint"></div>
   <div id="vhint" class="hidden"></div>
+  <div id="droneCount"></div>
   <div id="vhud" class="hidden"><div id="vname">—</div><div class="vbar"><div id="vhpfill"></div></div>
     <div class="vrow"><span id="vammo">100</span><span id="vrock"></span></div><div class="vrow small"><span id="vspd"></span><span id="valt"></span></div><div class="vkeys" id="vkeys"></div></div>
   <div id="board" class="hidden"><div class="bcol"><h3>TILANNE <span id="bcode"></span></h3><table><thead><tr><th></th><th>TIIMI / PELAAJA</th><th>KAADOT</th><th>KUOL.</th></tr></thead><tbody id="brows"></tbody></table><p class="sub" id="bsub"></p></div>
     <div class="bcol keyscol"><h3>NÄPPÄIMET</h3>
-      <div class="kgrid desk"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · hengityksen pidätys kiikarilla</span><b>Välilyönti / hiiri</b><span>ammu</span><b>Hiiri oikea</b><span>tähtää</span><b>E</b><span>hyppy</span><b>R</b><span>lataa</span><b>1–7 · Q</b><span>ase · edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos</span><b>T</b><span>tiimiviesti</span><b>V</b><span>nouse ajoneuvoon / poistu</span><b>Tab</b><span>tilanne ja näppäimet</span><b>F</b><span>suorituskykymittari</span><b>Esc</b><span>valikko</span></div>
-      <div class="kgrid tch"><b>Vasen peukalo</b><span>liiku · tikku ylös asti = juokse</span><b>Oikea peukalo</b><span>katsele</span><b>AMMU</b><span>ammu (voi vetää tähdätessä)</span><b>Yläpalkki</b><span>vaihda asetta</span><b>VIESTI</b><span>tiimiviesti</span><b>KYYTI</b><span>nouse ajoneuvoon / poistu</span></div>
-      <p class="sub">Tarkastuspaikalla (vihreä valopylväs) näet karttanäytöltä kaikkien sijainnit. Laatikoista saa kranaatteja ja sinkoammuksia – kävele laatikon luo.<br>Ajoneuvot (kartat 2 ja 3): panssariajoneuvo – WASD ajaa, hiiri kääntää tornia, ammu = konekivääri. Helikopteri – W/S eteen/taakse, A/D sivulle, E nousee, Q laskee, hiiri kääntää, ammu = konetykit, oikea hiiri tai G = raketit.</p></div></div>
+      <div class="kgrid desk"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · hengityksen pidätys kiikarilla</span><b>Välilyönti / hiiri</b><span>ammu</span><b>Hiiri oikea</b><span>tähtää</span><b>E</b><span>hyppy</span><b>R</b><span>lataa</span><b>1–7 · Q</b><span>ase · edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos</span><b>T</b><span>tiimiviesti</span><b>V</b><span>nouse ajoneuvoon / poistu</span><b>8</b><span>räjähdedrooni (FPV) · 8 uudelleen hylkää</span><b>Tab</b><span>tilanne ja näppäimet</span><b>F</b><span>suorituskykymittari</span><b>Esc</b><span>valikko</span></div>
+      <div class="kgrid tch"><b>Vasen peukalo</b><span>liiku · tikku ylös asti = juokse</span><b>Oikea peukalo</b><span>katsele</span><b>AMMU</b><span>ammu (voi vetää tähdätessä)</span><b>Yläpalkki</b><span>vaihda asetta</span><b>VIESTI</b><span>tiimiviesti</span><b>KYYTI</b><span>nouse ajoneuvoon / poistu</span><b>DROONI</b><span>räjähdedrooni (FPV), AMMU laukaisee</span></div>
+      <p class="sub">Tarkastuspaikalla (vihreä valopylväs) näet karttanäytöltä kaikkien sijainnit. Laatikoista saa kranaatteja ja sinkoammuksia – kävele laatikon luo.<br>Ajoneuvot (kartat 2 ja 3): panssariajoneuvo – WASD ajaa, hiiri kääntää tornia, ammu = konekivääri. Helikopteri – W/S eteen/taakse, A/D ja hiiri kääntävät, E nousee, Q laskee, ammu = konetykit, oikea hiiri tai G = raketit. Moottoripyörä – W kaasu, S jarru, A/D ohjaa, ammu omilla aseilla.<br>Räjähdedrooni (8): yksi per elämä. Hiiri ohjaa, W/S nopeus, E/Q korkeus, ammu laukaisee. Kuva häiriintyy kauempana. Droonin voi ampua alas.</p></div></div>
   <div id="death" class="hidden"><div class="big">KAADUIT</div><div id="killer"></div><div id="respawn"></div></div>
   <div id="over" class="hidden"><div class="big" id="overWhy"></div><table><tbody id="overRows"></tbody></table><p class="sub">Uusi ottelu alkaa hetken kuluttua…</p></div>
   <div id="perf" class="hidden"></div>
@@ -58,7 +59,7 @@
     </div>
     <div id="loadbar"><div id="loadfill"></div><span id="loadtxt">Ladataan kaupunkia…</span></div>
     <details class="keys"><summary>Ohjaimet</summary>
-      <div class="grid"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · pidätä hengitystä kiikarilla</span><b>Välilyönti / hiiri vasen</b><span>ammu</span><b>E</b><span>hyppy</span><b>Hiiri oikea</b><span>tähtää (pidä)</span><b>R</b><span>lataa</span><b>1–7</b><span>vaihda asetta</span><b>Q</b><span>edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos 4× / 8×</span><b>T</b><span>tiimiviesti</span><b>V</b><span>nouse ajoneuvoon / poistu</span><b>Tab</b><span>tilanne ja näppäimet</span><b>Esc</b><span>valikko</span></div>
+      <div class="grid"><b>WASD</b><span>liiku</span><b>Shift</b><span>juokse · pidätä hengitystä kiikarilla</span><b>Välilyönti / hiiri vasen</b><span>ammu</span><b>E</b><span>hyppy</span><b>Hiiri oikea</b><span>tähtää (pidä)</span><b>R</b><span>lataa</span><b>1–7</b><span>vaihda asetta</span><b>Q</b><span>edellinen ase</span><b>G</b><span>käsikranaatti</span><b>Z</b><span>kiikarin suurennos 4× / 8×</span><b>T</b><span>tiimiviesti</span><b>V</b><span>nouse ajoneuvoon / poistu</span><b>8</b><span>räjähdedrooni (FPV) · 8 uudelleen hylkää</span><b>Tab</b><span>tilanne ja näppäimet</span><b>Esc</b><span>valikko</span></div>
       <div class="grid touchkeys"><b>Vasen peukalo</b><span>liiku · vie tikku ylös asti = juokse</span><b>Oikea peukalo</b><span>katsele vetämällä</span><b>Napit</b><span>ammu (voi vetää), tähtää, hyppy, lataa, kranaatti</span><b>Yläpalkki</b><span>vaihda asetta</span></div>
     </details>
     <div class="fine"><button class="linkbtn" id="licLink">© Aineistolähteet ja lisenssit</button></div>
@@ -95,6 +96,7 @@
   <button class="tb hidden" id="tZoom" data-act="zoom">4×</button>
   <button class="tb sq" id="tChat" data-act="chat">VIESTI</button>
   <button class="tb hidden" id="tVeh" data-act="vehicle">KYYTI</button>
+  <button class="tb" id="tDrone" data-act="drone">DROONI</button>
   <button class="tb sq" id="tBoard" data-act="board">TILANNE</button>
 </div>
 <div id="rotate" class="hidden"><div>⟳</div>Käännä puhelin vaakatasoon</div>
@@ -105,6 +107,8 @@
 <!-- karttanäyttö tarkastuspaikalla -->
 <div id="mapscreen" class="lcd hidden"><div class="lcd-bezel"><div class="lcd-title">TARKASTUSPAIKKA · KARTTANÄYTTÖ</div><div class="lcd-screen map"><canvas></canvas></div></div></div>
 
+<!-- räjähdedroonin FPV-kuva -->
+<div id="fpv" class="hidden"><canvas id="fpvNoise" width="200" height="112"></canvas><div class="fpvx"><i></i><i></i></div><div id="fpvInfo"></div><div class="fpvrec">● REC</div></div>
 <div id="clickToPlay" class="hidden"><div>KLIKKAA PELATAKSESI</div><small>Esc vapauttaa hiiren</small></div>
 
 <div id="lic" class="panel-wrap hidden"><div class="panel lic"><div class="title small">AINEISTOT JA TEKIJÄNOIKEUDET</div>
@@ -112,7 +116,8 @@
 <p>Aineiston tuottaja: Helsingin kaupunki<br>Aineisto: Helsingin 3D-kaupunkitietomalli (LoD2) ja ortoilmakuva 2025<br>Lisenssi: Creative Commons Nimeä 4.0 Kansainvälinen (CC BY 4.0)<br>
 Lisenssin ehdot: <a href="https://creativecommons.org/licenses/by/4.0/deed.fi" target="_blank" rel="noopener">creativecommons.org/licenses/by/4.0/deed.fi</a><br>Aineiston lähde: <a href="https://kartta.hel.fi/3d/" target="_blank" rel="noopener">kartta.hel.fi/3d</a></p>
 <p>Alkuperäistä 3D-aineistoa on muokattu ja muunnettu pelikäyttöön soveltuvaksi (tekstuuriatlakset, paikallinen koordinaatisto).</p>
-<p>Helikopterin 3D-malli: cadnav.com (AH-6 Little Bird), muokattu. Panssariajoneuvo ja aseet ovat pelin omia malleja.</p>
+<p>Helikopterin 3D-malli: cadnav.com (AH-6 Little Bird), muokattu. Panssariajoneuvo, drooni ja aseet ovat pelin omia malleja.</p>
+<p>Moottoripyörä: "MOTO AFRICA 1938 low poly" (<a href="https://skfb.ly/osKNT" target="_blank" rel="noopener">skfb.ly/osKNT</a>) by uchronia, lisenssi CC BY-NC-ND 4.0 (<a href="http://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank" rel="noopener">creativecommons.org/licenses/by-nc-nd/4.0</a>). Materiaalit muunnettu glTF metal/rough -muotoon.</p>
 <p>Peli on itsenäinen tuotanto, eikä Helsingin kaupunki ole sen kehittäjä, julkaisija tai sponsori.</p>
 <button id="licClose" class="wide">Sulje</button></div></div>
 

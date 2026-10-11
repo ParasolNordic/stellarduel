@@ -24,7 +24,8 @@ import { Objectives, MapScreen } from './world/Objectives.js';
 import { Chat } from './ui/Chat.js';
 import { addWater } from './world/Water.js';
 import { Vehicles } from './vehicles/Vehicles.js';
-import { COLORS, COLOR_HEX, MAPS, MAX_PLAYERS, KILL_LIMIT, colorName, VEHICLES, VEHICLE_WEAPONS } from './shared.js';
+import { DroneSystem } from './drone/Drone.js';
+import { COLORS, COLOR_HEX, MAPS, MAX_PLAYERS, KILL_LIMIT, colorName, VEHICLES, VEHICLE_WEAPONS, DRONE } from './shared.js';
 
 const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -55,7 +56,8 @@ let qualityId = params.get('q') && QUALITY_PRESETS[params.get('q')] ? params.get
 if (!QUALITY_PRESETS[qualityId]) qualityId = 'high';
 const settings = { sens: +store.get('sens', 1), adsSens: +store.get('adsSens', 1), fov: +store.get('fov', 78), vol: +store.get('vol', 0.8) };
 
-let collider, player, vm, weapons, fx, marks, avatars, objectives, mapScreen, vehicles = null, inVeh = null;
+let collider, player, vm, weapons, fx, marks, avatars, objectives, mapScreen, vehicles = null, inVeh = null, drones = null;
+const closed = () => (inVeh && inVeh.type !== 'moto' ? inVeh : null);   // umpinainen ajoneuvo: kolmannen persoonan kamera, omat aseet tauolla
 let myColor = COLOR_HEX.has(store.get('color', '')) ? store.get('color', '') : COLORS[0].hex;
 const me = { id: null, name: '', color: myColor, alive: false, hp: 100, deadT: RESPAWN, protect: false, spawnReq: 0, killer: null, deathPos: new THREE.Vector3() };
 const game = { code: null, url: '', players: new Map(), t: 0, limit: 15, timeLimit: 600, over: false, playing: false, locked: false };
@@ -106,18 +108,23 @@ async function load() {
     vehicles = new Vehicles({ scene, world, collider, sound, fx, player, weapons, avatars, net });
     await vehicles.load(); weapons.vehicles = vehicles;
   }
+  drones = new DroneSystem({ scene, world, collider, sound, fx, avatars, net, getVehicles: () => vehicles });
+  weapons.drones = drones;
+  drones.onEnd = () => { $('fpv').classList.add('hidden'); document.body.classList.remove('fpv'); if (drones.lastMsg) { hud.center(drones.lastMsg, '', 1.4); drones.lastMsg = null; } };
+  avatars.rideLookup = id => { if (!vehicles) return null; for (const v of vehicles.list.values()) if (v.driver === id && v.type === 'moto' && v.alive) return v; return null; };
   applyQuality(qualityId);
   computeSpawnCells();
   objectives = new Objectives(scene, world, MAPS[MAP.id]);
   progress('Piirretään karttanäyttö…', 0.97);
   mapScreen = new MapScreen($('mapscreen'), renderTopView(renderer, scene, world, { size: 900 }));
-  avatars.setMyColor(myColor); weapons.myColor = myColor;
+  avatars.setMyColor(myColor); weapons.myColor = myColor; drones.myColor = myColor;
   touch = new TouchControls({ root: $('touch'), player, weapons,
     onLook: (dx, dy) => { lookDx += dx * 2.3; lookDy += dy * 2.3; },
     actions: {
-      jump: () => !inVeh && player.jump(),
-      reload: () => me.alive && !inVeh && weapons.reload(),
-      grenade: () => me.alive && !inVeh && weapons.throwGrenade(),
+      jump: () => !inVeh && !drones.flying && player.jump(),
+      reload: () => me.alive && !closed() && !drones.flying && weapons.reload(),
+      grenade: () => me.alive && !closed() && !drones.flying && weapons.throwGrenade(),
+      drone: () => toggleDrone(),
       vehicle: () => toggleVehicle(),
       ads: () => { weapons.adsHeld = !weapons.adsHeld; $('tAds').classList.toggle('on', weapons.adsHeld); },
       zoom: () => weapons.cycleZoom(),
@@ -201,6 +208,7 @@ function join(code) {
     marks.clear(); for (const m of r.marks || []) marks.add(m);
     objectives.setCrates(r.crates || []);
     if (vehicles) { vehicles.myId = r.id; vehicles.setList(r.vehicles || []); syncVehicle(); }
+    drones.myId = r.id;
     history.replaceState(null, '', '?k=' + r.code + (params.get('q') ? '&q=' + params.get('q') : ''));
     $('lobbyStart').classList.add('hidden'); $('lobbyShare').classList.remove('hidden');
     $('shareCode').textContent = r.code; $('shareUrl').textContent = game.url;
@@ -271,15 +279,18 @@ addEventListener('keydown', e => {
   if (e.code === 'Space') e.preventDefault();
   player.keys.add(e.code);
   if (e.repeat) return;
-  if (e.code === 'KeyE' && !inVeh) player.jump();
+  if (e.code === 'KeyE' && !inVeh && !drones.flying) player.jump();
   if (e.code === 'KeyT') { e.preventDefault(); openChat(); return; }
   if (!me.alive) return;
+  if (e.code === 'Digit8') { toggleDrone(); return; }
+  if (drones.flying) { if (e.code === 'Space') { weapons.trigger = true; weapons.pressed = true; } return; }   // FPV: ohjaus syötteestä, Välilyönti laukaisee
   if (e.code === 'KeyV') { toggleVehicle(); return; }
-  if (inVeh) { if (e.code === 'Space') { weapons.trigger = true; weapons.pressed = true; } return; }   // ajoneuvossa: WASD/E/Q/G luetaan syötteestä suoraan
+  if (closed()) { if (e.code === 'Space') { weapons.trigger = true; weapons.pressed = true; } return; }   // ajoneuvossa: WASD/E/Q/G luetaan syötteestä suoraan
+  if (inVeh && (e.code === 'KeyQ' || e.code === 'KeyG')) { if (e.code === 'KeyG') weapons.throwGrenade(); }   // moottoripyörällä Q ei vaihda asetta (jarru S)
   if (e.code === 'Space') { weapons.trigger = true; weapons.pressed = true; }
   if (e.code === 'KeyR') weapons.reload();
-  if (e.code === 'KeyG') weapons.throwGrenade();
-  if (e.code === 'KeyQ') weapons.select(weapons.prev);
+  if (e.code === 'KeyG' && !inVeh) weapons.throwGrenade();
+  if (e.code === 'KeyQ' && !inVeh) weapons.select(weapons.prev);
   if (e.code === 'KeyZ') weapons.cycleZoom();
   if (e.code === 'KeyT') { e.preventDefault(); openChat(); return; }
   const n = /^Digit([1-7])$/.exec(e.code); if (n) weapons.select(+n[1] - 1);
@@ -306,7 +317,7 @@ $('licClose').addEventListener('click', () => $('lic').classList.add('hidden'));
 
 // ---------- ajoneuvot: nousu, poistuminen, syöte, kolmannen persoonan kamera ----------
 function toggleVehicle() {
-  if (!vehicles || !me.alive || game.over || !game.playing) return;
+  if (!vehicles || !me.alive || game.over || !game.playing || drones.flying) return;
   if (vehicles.mine) {
     const v = vehicles.mine;
     if (v.type === 'heli') { const g = vehicles.groundAt(v.pos.x, v.pos.z, 3, v.pos.y) ?? v.pos.y; if (v.pos.y - g > 2.5) { hud.center('LASKEUDU ENSIN', 'Q laskee', 1.2); return; } }
@@ -314,19 +325,51 @@ function toggleVehicle() {
   }
   const v = vehicles.nearestFree(player.pos); if (v) net.emit('venter', { v: v.id });
 }
+// ---------- räjähdedrooni (FPV) ----------
+function toggleDrone() {
+  if (!drones || !me.alive || game.over || !game.playing) return;
+  if (drones.flying) { drones.lost('DROONI HYLÄTTY'); return; }
+  if (inVeh) { hud.center('NOUSE ENSIN KYYDISTÄ', '', 1.2); return; }
+  if (drones.count <= 0) { hud.center('EI DROONIA', 'uusi drooni syntyessä', 1.2); return; }
+  if (!drones.launch(player)) return;
+  weapons.trigger = false; weapons.adsHeld = false; $('tAds').classList.remove('on'); player.keys.clear();
+  $('fpv').classList.remove('hidden'); document.body.classList.add('fpv');
+  hud.center('DROONI', 'W/S nopeus · A/D sivulle · E/Q ylös/alas · AMMU laukaisee · 8 hylkää', 2);
+}
+// FPV-kuvan häiriöt: kohina ja repeämät voimistuvat etäisyyden (signaalin) mukaan
+const fpvCanvas = $('fpvNoise'), fpvCtx = fpvCanvas.getContext('2d'), fpvImg = fpvCtx.createImageData(fpvCanvas.width, fpvCanvas.height);
+let fpvAcc = 0;
+function fpvOverlay(dt) {
+  if ((fpvAcc += dt) < 1 / 30) return; fpvAcc = 0;
+  const sig = drones.signal(), A = drones.active; if (!A) return;
+  const k = 0.06 + sig * sig * 0.85, d = fpvImg.data, W = fpvCanvas.width;
+  const drop = sig > 0.55 && Math.random() < (sig - 0.55) * 0.5;               // hetkellinen kuvakatko
+  for (let i = 0, n = d.length / 4; i < n; i++) {
+    const tear = Math.random() < k * 0.02 ? 1 : 0, v = Math.random() * 255;
+    d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = drop ? 235 : (tear ? 200 : Math.random() < k ? 40 + 160 * k : 0);
+  }
+  // vaakasuorat häiriöviivat
+  const lines = Math.floor(sig * 10 + Math.random() * 2);
+  for (let l = 0; l < lines; l++) { const y = (Math.random() * fpvCanvas.height) | 0; for (let x = 0; x < W; x++) { const j = (y * W + x) * 4; d[j] = 220; d[j + 1] = 230; d[j + 2] = 255; d[j + 3] = 90 + sig * 120; } }
+  fpvCtx.putImageData(fpvImg, 0, 0);
+  $('viewport').style.filter = sig > 0.35 ? `saturate(${(1.15 - sig * 0.6).toFixed(2)}) contrast(${(1 + sig * 0.25).toFixed(2)})` : '';
+  const bars = Math.max(0, Math.round((1 - sig) * 5));
+  hud.set('fpvInfo', `FPV · SIGNAALI ${'▮'.repeat(bars)}${'▯'.repeat(5 - bars)} · AKKU ${Math.max(0, Math.ceil(DRONE.battery - A.t))} s · ${Math.round(A.speed * 3.6)} km/h · ${Math.round(A.pos.distanceTo(A.home))} m`);
+}
+
 // palvelimen ajoneuvolista kertoo, ajanko itse: siirrytään kyytiin tai jäädään ulos
 function syncVehicle() {
   const m = vehicles && me.alive ? vehicles.mine : null;
   if (m === inVeh) return;
   const prev = inVeh; inVeh = m;
-  document.body.classList.toggle('invehicle', !!m);
+  document.body.classList.toggle('invehicle', !!m && m.type !== 'moto');
   $('vhud').classList.toggle('hidden', !m);
   weapons.trigger = false; weapons.adsHeld = false; $('tAds').classList.remove('on');
   if (m) {
     player.yaw = m.h + Math.PI; player.pitch = m.type === 'heli' ? -0.2 : -0.08; player.vel.set(0, 0, 0);
     vehicles.ammo = { 8: VEHICLE_WEAPONS[8].mag, 9: VEHICLE_WEAPONS[9].mag }; vehicles.reloadT = 0; vehicles.rockets = 14; vehicles.rocketReloadT = 0;
-    if (weapons.state === 'reload') weapons.vm.endReload();
-    hud.center(VEHICLES[m.type].name, m.type === 'heli' ? 'E nousee · Q laskee · V poistuu' : 'WASD ajaa · V poistuu', 1.8);
+    if (weapons.state === 'reload' && m.type !== 'moto') weapons.vm.endReload();
+    hud.center(VEHICLES[m.type].name, m.type === 'heli' ? 'A/D kääntää · E nousee · Q laskee · V poistuu' : m.type === 'moto' ? 'W kaasu · S jarru · A/D ohjaa · omat aseet käytössä · V poistuu' : 'WASD ajaa · V poistuu', 1.8);
     sound.click(1400, 0.3); sound.click(700, 0.3, 0.08);
   } else if (prev && me.alive) {
     player.teleport(vehicles.exitSpot(prev), player.yaw);
@@ -358,7 +401,7 @@ function vehicleInput(active) {
   I.side = (k.has('KeyD') || k.has('ArrowRight') ? 1 : 0) - (k.has('KeyA') || k.has('ArrowLeft') ? 1 : 0);
   if (player.analog) { I.fwd = player.analog.y; I.side = player.analog.x; }
   I.up = (k.has('KeyE') || touchHeld('jump') ? 1 : 0) - (k.has('KeyQ') || k.has('KeyC') || k.has('ControlLeft') || touchHeld('reload') ? 1 : 0);
-  I.fire = weapons.trigger;
+  I.fire = inVeh && inVeh.type !== 'moto' && weapons.trigger;
   I.alt = weapons.adsHeld || k.has('KeyG') || touchHeld('grenade');
   return I;
 }
@@ -371,15 +414,16 @@ function vehicleHud(dt) {
   if (isTouch) $('tVeh').classList.toggle('hidden', !(near || inVeh));
   if (isTouch) hud.set('tVeh', inVeh ? 'POISTU' : 'KYYTI');
   if (!inVeh) return;
-  const v = inVeh, w = v.type === 'apc' ? 8 : 9, max = VEHICLES[v.type].hp, f = Math.max(0, v.hp / max);
+  const v = inVeh, w = v.type === 'apc' ? 8 : 9, max = VEHICLES[v.type].hp, f = Math.max(0, v.hp / max), mo = v.type === 'moto';
   hud.set('vname', VEHICLES[v.type].name);
   const el = $('vhpfill'); el.style.width = Math.round(f * 100) + '%'; el.style.background = f > 0.5 ? '#7dd87d' : f > 0.25 ? '#ffb347' : '#ff5a4a';
-  hud.set('vammo', vehicles.reloadT > 0 ? 'LATAA…' : `${VEHICLE_WEAPONS[w].short} ${vehicles.ammo[w]}`);
+  hud.set('vammo', mo ? '' : v.dis ? 'LIIKUNTAKYVYTÖN' : vehicles.reloadT > 0 ? 'LATAA…' : `${VEHICLE_WEAPONS[w].short} ${vehicles.ammo[w]}`);
+  if (v.dis && v.type === 'apc' && vehicles.reloadT <= 0) hud.set('vammo', `${VEHICLE_WEAPONS[8].short} ${vehicles.ammo[8]} · PYSÄHTYNYT`);
   hud.set('vrock', v.type === 'heli' ? (vehicles.rocketReloadT > 0 ? 'RAK …' : `RAK ${vehicles.rockets}`) : '');
   hud.set('vspd', `${Math.round(v.speed * 3.6)} km/h`);
   const g = v.type === 'heli' ? (vehicles.groundAt(v.pos.x, v.pos.z, 3, v.pos.y) ?? v.pos.y) : v.pos.y;
   hud.set('valt', v.type === 'heli' ? `KORKEUS ${Math.max(0, Math.round(v.pos.y - g))} m` : `KESTO ${Math.round(v.hp)}`);
-  hud.set('vkeys', v.type === 'heli' ? 'W/S A/D LIIKU · E/Q YLÖS/ALAS · OIK. HIIRI/G RAKETIT · V POISTU' : 'WASD AJA · HIIRI TORNI · AMMU = KK · V POISTU');
+  hud.set('vkeys', v.type === 'heli' ? 'W/S ETEEN/TAAKSE · A/D KÄÄNNÄ · E/Q YLÖS/ALAS · OIK. HIIRI/G RAKETIT · V POISTU' : mo ? 'W KAASU · S JARRU · A/D OHJAA · AMMU OMALLA ASEELLA · V POISTU' : 'WASD AJA · HIIRI TORNI · AMMU = KONETYKKI · V POISTU');
 }
 
 // ---------- verkkotapahtumat ----------
@@ -387,7 +431,7 @@ const player_ = id => game.players.get(id) || { name: '?', color: '#aaa' };
 socket.on('roster', r => {
   game.players = new Map(r.players.map(p => [p.id, p])); game.limit = r.limit; game.timeLimit = r.timeLimit; game.t = r.t;
   const mine = game.players.get(me.id);
-  if (mine) { me.color = mine.color; weapons.myColor = mine.color; avatars.setMyColor(mine.color);
+  if (mine) { me.color = mine.color; weapons.myColor = mine.color; drones.myColor = mine.color; avatars.setMyColor(mine.color);
     chat?.setTeam(colorName(mine.color), mine.color, !r.players.some(p => p.id !== me.id && p.color === mine.color)); }
   for (const p of r.players) if (p.id !== me.id) avatars.ensure(p);
   for (const id of [...avatars.map.keys()]) if (!game.players.has(id)) avatars.remove(id);
@@ -402,6 +446,9 @@ socket.on('snap', s => {
   }
   if (vehicles && s.V) vehicles.push(s.V);
 });
+socket.on('dst', d => drones?.onState(d));
+socket.on('dend', d => drones?.onEndRemote(d.id, d.boom));
+socket.on('ddown', d => { if (d.id === me.id) drones.shotDown(); else { drones.onEndRemote(d.id, false); if (d.by === me.id) { hud.center('DROONI AMMUTTU ALAS', '', 1.2); sound.hitmark(false); } } });
 socket.on('vehicles', list => { if (!vehicles) return; vehicles.setList(list); syncVehicle(); });
 socket.on('vhit', d => {
   if (!vehicles) return;
@@ -419,7 +466,7 @@ socket.on('vboom', d => {
   if (d.by === me.id && v !== inVeh) hud.center('AJONEUVO TUHOTTU', VEHICLES[v.type].name, 1.6);
 });
 socket.on('joined', d => { if (d.id !== me.id) hud.feed(`<span>${d.name.replace(/</g, '')}</span><span class="w">LIITTYI PELIIN</span>`); });
-socket.on('left', d => hud.feed(`<span>${d.name.replace(/</g, '')}</span><span class="w">POISTUI</span>`));
+socket.on('left', d => { drones?.onEndRemote(d.id, true); }); socket.on('left', d => hud.feed(`<span>${d.name.replace(/</g, '')}</span><span class="w">POISTUI</span>`));
 const _v = new THREE.Vector3(), _d = new THREE.Vector3();
 let shotSnd = [];
 socket.on('fx', ({ id, S }) => {
@@ -434,6 +481,7 @@ socket.on('fx', ({ id, S }) => {
   for (let i = 4, k = 0; i + 3 < S.length; i += 4, k++) {
     const end = new THREE.Vector3(S[i], S[i + 1], S[i + 2]), code = S[i + 3];
     if (k < 3 || Math.random() < 0.3) fx.tracer(from, end, vw ? [1, 0.8, 0.45] : undefined);
+    if (vw && vw.he && code) { fx.miniBlast(end, from.clone().sub(end).normalize()); if (from.distanceTo(camera.position) < 300) sound.explosion(end, false, 0.45); continue; }
     if (code === 1 || code === 2) {
       const dir = end.clone().sub(from); const L = dir.length(); dir.divideScalar(L);
       const h = k < 3 ? collider.raycast(from, dir, L + 0.5) : null;
@@ -476,7 +524,7 @@ socket.on('spawned', d => {
   if (d.id !== me.id) return;
   me.alive = true; me.hp = 100; me.spawnReq = 0; me.protect = true;
   player.teleport(new THREE.Vector3().fromArray(d.p), spawnYaw);
-  weapons.reset();
+  weapons.reset(); drones.reset();
   $('death').classList.add('hidden');
 });
 socket.on('over', d => {
@@ -488,7 +536,7 @@ socket.on('over', d => {
 });
 socket.on('newmatch', () => {
   game.over = false; $('over').classList.add('hidden');
-  marks.clear(); weapons.clearProjectiles();
+  marks.clear(); weapons.clearProjectiles(); drones.reset(); drones.clearRemote();
   me.alive = false; me.deadT = RESPAWN - 0.5; $('death').classList.add('hidden');
   hud.center('UUSI OTTELU', `ensimmäinen tiimi ${KILL_LIMIT} kaatoon`);
 });
@@ -533,10 +581,14 @@ function frame() {
   }
   // hiiren katselu (herkkyys skaalautuu näkökentän ja kiikarin suurennoksen mukaan)
   if (inVeh && (!inVeh.alive || !me.alive)) syncVehicle();
+  if (drones.flying && !me.alive) drones.end(false);
+  const cv = closed(), fly = drones.flying;
   const A = vm.ads;
   const adsScale = def.sight === 'scope' ? 1 / weapons.zoom : def.adsFov / settings.fov;
-  const scale = inVeh ? settings.sens * 0.0022 : (1 + (adsScale * settings.adsSens - 1) * A) * settings.sens * 0.0022;
-  if (active || (game.playing && game.locked && !me.alive)) player.look(lookDx * scale, lookDy * scale);
+  const scale = cv || fly ? settings.sens * 0.0022 : (1 + (adsScale * settings.adsSens - 1) * A) * settings.sens * 0.0022;
+  let droneLook = null;
+  if (fly) droneLook = { dx: active ? lookDx * scale : 0, dy: active ? lookDy * scale : 0 };
+  else if (active || (game.playing && game.locked && !me.alive)) player.look(lookDx * scale, lookDy * scale);
   lookDx = lookDy = 0;
   const ldx = player._lastYaw !== undefined ? player.yaw - player._lastYaw : 0, ldy = player._lastPitch !== undefined ? player.pitch - player._lastPitch : 0;
   player._lastYaw = player.yaw; player._lastPitch = player.pitch;
@@ -544,25 +596,39 @@ function frame() {
   // liike
   player.ads = A; player.speedMul = def.speed;
   weapons.holding = player.keys.has('ShiftLeft') || player.keys.has('ShiftRight');
-  const vIn = inVeh ? vehicleInput(active) : null;
+  const vIn = inVeh || fly ? vehicleInput(active) : null;
   for (let i = 0; i < nSub; i++) {
-    if (inVeh) {
+    if (fly) {
+      // drooni lentää, pelaajan keho seisoo paikallaan (painovoima ja törmäykset jatkuvat)
+      if (me.alive) player.update(dt, false);
+      drones.update(dt, { fwd: vIn.fwd, side: vIn.side, up: vIn.up, fire: weapons.trigger, dx: droneLook.dx / nSub, dy: droneLook.dy / nSub });
+      if (drones.flying) drones.camera(camera); else placeCamera(0);
+    } else if (cv) {
       // ajoneuvossa: jalkaväen liike ja aseet tauolla, pelaajan paikka seuraa ajoneuvoa
-      vehicleCamera(inVeh, 0);
+      if (cv.type === 'heli') player.yaw -= vIn.side * 1.5 * dt;               // poljin: A/D kääntää kopteria (ja katsetta)
+      vehicleCamera(cv, 0);
       vehicles.simulate(dt, vIn);
-      player.pos.copy(inVeh.pos); player.vel.set(0, 0, 0);
+      player.pos.copy(cv.pos); player.vel.set(0, 0, 0);
+    } else if (inVeh) {
+      // moottoripyörä: ajaja istuu, katse vapaa ja omat aseet käytössä
+      vehicles.simulate(dt, vIn);
+      player.pos.copy(inVeh.pos); player.vel.set(Math.sin(inVeh.h), 0, Math.cos(inVeh.h)).multiplyScalar(inVeh.speed * 0.25); player.onGround = true; player.sprinting = false;   // vauhti lisää hajontaa
+      placeCamera(0);
     } else {
       if (me.alive) { player.update(dt, active); if (vehicles) vehicles.pushOut(player.pos, 0.45); }
       if (me.alive) placeCamera(0);                 // laukaus lähtee tämänhetkiseen katsesuuntaan (ei edellisen ruudun)
     }
-    weapons.update(dt, { camera, player, alive: active && !inVeh });
+    weapons.update(dt, { camera, player, alive: active && !cv && !fly });
   }
+  drones.updateRemote(rawDt);
+  if (drones.flying) fpvOverlay(rawDt); else if ($('viewport').style.filter) $('viewport').style.filter = '';
   if (vehicles) vehicles.update(rawDt, camera.position);
   landKick = Math.max(0, landKick - rawDt * 4);
 
   // kamera
   const sh = fx.shake;
-  if (inVeh) vehicleCamera(inVeh, sh);
+  if (drones.flying) drones.camera(camera);
+  else if (cv) vehicleCamera(cv, sh);
   else if (me.alive) placeCamera(sh);
   else if (game.playing) {
     // kuolinkamera: nousee ja katsoo kaatumispaikkaa
@@ -570,13 +636,13 @@ function frame() {
     camera.position.set(me.deathPos.x, me.deathPos.y + EYE + k * 5, me.deathPos.z).addScaledVector(new THREE.Vector3(Math.sin(player.yaw), 0, Math.cos(player.yaw)), k * 4);
     camera.lookAt(me.deathPos.x, me.deathPos.y + 0.5, me.deathPos.z);
   }
-  const targetFov = inVeh ? settings.fov : THREE.MathUtils.lerp(settings.fov, def.sight === 'scope' ? 38 : def.adsFov * settings.fov / 78, A * A * (3 - 2 * A)) + (player.sprinting ? 5 : 0);
+  const targetFov = drones.flying ? DRONE.fov : cv ? settings.fov : THREE.MathUtils.lerp(settings.fov, def.sight === 'scope' ? 38 : def.adsFov * settings.fov / 78, A * A * (3 - 2 * A)) + (player.sprinting ? 5 : 0);
   fovCur += (targetFov - fovCur) * Math.min(1, rawDt * 14);
   if (Math.abs(camera.fov - fovCur) > 0.01) { camera.fov = fovCur; camera.updateProjectionMatrix(); }
   camera.updateMatrixWorld();
 
   // asekuva
-  vm.update(rawDt, { def, ads: active && !inVeh && weapons.adsHeld && !player.sprinting && weapons.state !== 'swap', sprint: player.sprinting, moving: player.moving, bob: player.bob, onGround: player.onGround,
+  vm.update(rawDt, { def, ads: active && !cv && !drones.flying && weapons.adsHeld && !player.sprinting && weapons.state !== 'swap', sprint: player.sprinting, moving: player.moving, bob: player.bob, onGround: player.onGround,
     dx: ldx, dy: ldy, landKick });
   shadowAcc += rawDt;
   if (shadowAcc > 0.25) { shadowAcc = 0; sunProbe.copy(camera.position).addScaledVector(lighting.sunDir, 250); shadowed = !collider.clear(camera.position, sunProbe); }
@@ -613,7 +679,8 @@ function frame() {
   if (game.playing) {
     const spreadDeg = weapons.spread(player);
     const px = Math.tan(spreadDeg * Math.PI / 180) / Math.tan(camera.fov * Math.PI / 360) * innerHeight / 2;
-    hud.crosshair(inVeh ? 5 : px, me.alive && (inVeh || A < 0.6), !inVeh && player.sprinting);
+    hud.crosshair(cv ? 5 : px, me.alive && !drones.flying && (cv || A < 0.6), !inVeh && player.sprinting);
+    hud.set('droneCount', drones.flying ? '' : drones.count > 0 ? '8 = DROONI' : '');
     hud.health(me.alive ? me.hp : 0);
     hud.ammo(weapons);
     hud.timer(game.t, game.timeLimit);
@@ -631,9 +698,9 @@ function frame() {
   const tB = performance.now();
   renderer.setRenderTarget(null); renderer.clear();
   renderer.render(scene, camera);
-  const scoped = me.alive && game.playing && !inVeh && vm.renderScope(renderer, scene, camera, weapons.zoom, settings.fov);
+  const scoped = me.alive && game.playing && !cv && !drones.flying && vm.renderScope(renderer, scene, camera, weapons.zoom, settings.fov);
   hud.scopeMask(vm.lensScreen, scoped ? Math.max(0, (A - 0.75) / 0.25) * 0.97 : 0);
-  if (me.alive && game.playing && !inVeh) vm.render(renderer);
+  if (me.alive && game.playing && !cv && !drones.flying) vm.render(renderer);
   perf.tick();
   prof.upd = prof.upd * 0.95 + (tB - tA) * 0.05; prof.draw = prof.draw * 0.95 + (performance.now() - tB) * 0.05;
   perfAcc += rawDt;
@@ -645,7 +712,7 @@ function frame() {
 
 // testejä ja vianetsintää varten
 window.__FPS = { get player() { return player; }, get weapons() { return weapons; }, get avatars() { return avatars; }, get marks() { return marks; }, get fx() { return fx; }, me, game, socket, world, camera, renderer,
-  get spawnCells() { return spawnCells; }, get vehicles() { return vehicles; }, get inVeh() { return inVeh; }, toggleVehicle, get objectives() { return objectives; }, sound, startPlaying, prof, join, perf, lighting,
+  get spawnCells() { return spawnCells; }, get vehicles() { return vehicles; }, get inVeh() { return inVeh; }, toggleVehicle, toggleDrone, get drones() { return drones; }, get objectives() { return objectives; }, sound, startPlaying, prof, join, perf, lighting,
   look(yaw, pitch) { player.yaw = yaw; player.pitch = pitch; }, topView: o => renderTopView(renderer, scene, world, o), MAP };
 
 load().catch(e => { console.error(e); progress('Lataus epäonnistui: ' + e.message, 0); });

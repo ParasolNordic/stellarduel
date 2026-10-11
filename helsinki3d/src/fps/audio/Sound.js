@@ -95,7 +95,7 @@ export class Sound {
   engineLoop(type) {
     if (!this.ok) return null;
     const c = this.ctx, t = c.currentTime;
-    const p = c.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = type === 'heli' ? 14 : 8; p.rolloffFactor = 1.0; p.maxDistance = 900;
+    const p = c.createPanner(); p.panningModel = 'HRTF'; p.distanceModel = 'inverse'; p.refDistance = type === 'heli' ? 14 : type === 'drone' ? 3 : 8; p.rolloffFactor = 1.0; p.maxDistance = 900;
     const g = c.createGain(); g.gain.value = 0.0001; g.connect(p); p.connect(this.master);
     const vs = c.createGain(); vs.gain.value = 0.25; g.connect(vs); vs.connect(this.verbIn);
     const nodes = [];
@@ -115,7 +115,7 @@ export class Sound {
       osc = c.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 38;
       bodyLp = c.createBiquadFilter(); bodyLp.type = 'lowpass'; bodyLp.frequency.value = 260; bodyLp.Q.value = 2;
       const og = c.createGain(); og.gain.value = 0.55; osc.connect(bodyLp); bodyLp.connect(og); og.connect(g);
-      const nb = c.createBiquadFilter(); nb.type = 'bandpass'; nb.frequency.value = 180; nb.Q.value = 0.7; const ng = c.createGain(); ng.gain.value = 0.5;
+      const nb = c.createBiquadFilter(); nb.type = 'bandpass'; nb.frequency.value = type === 'drone' ? 3000 : 180; nb.Q.value = 0.7; const ng = c.createGain(); ng.gain.value = type === 'drone' ? 0.15 : 0.5;
       noise.connect(nb); nb.connect(ng); ng.connect(g); nodes.push(osc);
     }
     for (const n of nodes) n.start(t);
@@ -123,21 +123,26 @@ export class Sound {
     const set = (pos, level, speed) => {
       if (stopped || !Number.isFinite(pos.x + pos.y + pos.z + level + speed)) return;
       const tt = c.currentTime;
-      if (p.positionX) { p.positionX.setTargetAtTime(pos.x, tt, 0.03); p.positionY.setTargetAtTime(pos.y + 1.5, tt, 0.03); p.positionZ.setTargetAtTime(pos.z, tt, 0.03); } else p.setPosition(pos.x, pos.y + 1.5, pos.z);
+      if (p.positionX) { p.positionX.setTargetAtTime(pos.x, tt, 0.03); p.positionY.setTargetAtTime(pos.y + (type === 'drone' ? 0 : 1.5), tt, 0.03); p.positionZ.setTargetAtTime(pos.z, tt, 0.03); } else p.setPosition(pos.x, pos.y + 1.5, pos.z);
       const L = Math.max(0, Math.min(1, level));
       if (type === 'heli') {
         g.gain.setTargetAtTime(0.05 + L * 0.85, tt, 0.15); lfo.frequency.setTargetAtTime(3 + L * 11 + speed * 1.5, tt, 0.2);
         bodyLp.frequency.setTargetAtTime(220 + L * 300 + speed * 250, tt, 0.2); whine.frequency.setTargetAtTime(1500 + L * 1900, tt, 0.3);
+      } else if (type === 'drone') {
+        // nelikopterin surina: korkea sahalaita, taajuus nousee vauhdin mukana
+        g.gain.setTargetAtTime(0.06 + L * 0.22, tt, 0.08); osc.frequency.setTargetAtTime(160 + L * 90 + speed * 80, tt, 0.08);
+        bodyLp.frequency.setTargetAtTime(2400, tt, 0.1);
       } else {
-        g.gain.setTargetAtTime(0.15 + L * 0.6, tt, 0.1); osc.frequency.setTargetAtTime(30 + L * 45 + speed * 20, tt, 0.12);
+        const mo = type === 'moto';
+        g.gain.setTargetAtTime((mo ? 0.1 : 0.15) + L * (mo ? 0.45 : 0.6), tt, 0.1); osc.frequency.setTargetAtTime(mo ? 45 + L * 90 + speed * 60 : 30 + L * 45 + speed * 20, tt, 0.1);
         bodyLp.frequency.setTargetAtTime(180 + L * 500, tt, 0.12);
       }
     };
     return { set, stop: () => { if (stopped) return; stopped = true; const tt = c.currentTime; g.gain.cancelScheduledValues(tt); g.gain.setTargetAtTime(0.0001, tt, 0.15); for (const n of nodes) n.stop(tt + 0.8); } };
   }
-  explosion(pos, big = true) {
+  explosion(pos, big = true, scale = 1) {
     if (!this.ok) return;
-    const c = this.ctx, t = c.currentTime, out = this.out(pos, big ? 3.2 : 2.6, 1.1);
+    const c = this.ctx, t = c.currentTime, out = this.out(pos, (big ? 3.2 : 2.6) * scale, 1.1 * scale);
     const n = this.noiseSrc(t, 2.5, 0.7), lp = c.createBiquadFilter(); lp.type = 'lowpass';
     lp.frequency.setValueAtTime(6000, t); lp.frequency.exponentialRampToValueAtTime(300, t + 0.6); lp.frequency.exponentialRampToValueAtTime(90, t + 2.4);
     const g = c.createGain(); this.env(g, t, 0.004, 1.0, 0.5, 1.8); n.connect(lp); lp.connect(g); g.connect(out);

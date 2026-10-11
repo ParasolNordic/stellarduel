@@ -1,16 +1,19 @@
-// Ajoneuvot: NC-4 panssariajoneuvo (konekivääri katolla) ja NC-H6 kevyt helikopteri (konetykit + raketit).
+// Ajoneuvot: NC-4 panssariajoneuvo (konetykki katolla), NC-H6 kevyt helikopteri (konetykit + raketit) ja moottoripyörä.
 // Kuljettajan selain simuloi liikkeen ja lähettää tilan palvelimelle 20 Hz; muut näkevät ajoneuvon interpoloituna.
 // Palvelin päättää, kuka ajaa, laskee kestävyyden ja tuhoaa ajoneuvon. Mallit: public/vehicles/*.glb (+manifest).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { VEHICLES, VEHICLE_WEAPONS, HELI_ROCKETS } from '../shared.js';
 
 const DELAY = 110, D2R = Math.PI / 180;
 const APC = { acc: 7, brake: 14, rev: 5, max: 17, maxRev: 6, steer: 30 * D2R, wheelbase: 3.5, track: 2.0, wheelR: 0.625 };
-const HELI = { acc: 16, side: 12, maxH: 44, vAcc: 7, vMax: 9, turn: 1.7, ceiling: 140 };
+const HELI = { acc: 16, maxH: 44, vAcc: 7, vMax: 9, turn: 2.4, ceiling: 140 };
+const MOTO = { acc: 9, brake: 16, rev: 2.5, max: 30, maxRev: 3, steer: 32 * D2R, wheelbase: 1.74, rF: 0.386, rR: 0.392, steerAxis: new THREE.Vector3(0, -0.832, 0.555).normalize() };
 // törmäyslaatikot (ajoneuvon omat koordinaatit, manifestien mukaan)
 const BOXES = {
   apc: [[[-1.2, 0.48, -3.1], [1.2, 2.45, 1.8]], [[-1.18, 0.78, 1.8], [1.18, 1.62, 3.13]], [[-0.45, 2.45, 0], [0.45, 3.36, 0.9]]],
+  moto: [[[-0.45, 0.1, -1.0], [0.45, 1.15, 1.5]]],
   heli: [[[-0.72, 0.5, -1.9], [0.72, 2.55, 1.95]], [[-0.45, 1.0, -4.85], [0.45, 2.75, -1.9]], [[-1.0, 0, -0.4], [1.0, 0.9, 2.3]], [[-1.83, 0.42, 0], [1.83, 1.05, 1.62]]],
 };
 const fwdOf = h => new THREE.Vector3(Math.sin(h), 0, Math.cos(h));
@@ -43,7 +46,11 @@ export class Vehicles {
       gltf.scene.traverse(o => {
         if (!o.isMesh) return;
         o.castShadow = true; o.receiveShadow = true;
-        if (o.material && o.material.transparent) { o.material.forceSinglePass = true; o.castShadow = false; }
+        const mn = o.material && o.material.name || '';
+        if (mn.endsWith('INVISIBLE')) { o.visible = false; return; }                     // moottoripyörän näkymätön apuverkko
+        if (mn.endsWith('rayon')) { o.material.alphaTest = 0.5; o.material.transparent = false; }   // pinnat
+        else if (o.material && o.material.transparent) { o.material.forceSinglePass = true; o.castShadow = false; }
+        if (o.isSkinnedMesh) o.frustumCulled = false;
       });
       this.templates[type] = gltf.scene;
     }
@@ -53,7 +60,7 @@ export class Vehicles {
     for (const d of list) {
       let v = this.list.get(d.id);
       if (!v) v = this.create(d);
-      v.driver = d.driver; v.hp = d.hp;
+      v.driver = d.driver; v.hp = d.hp; v.dis = !!d.dis;
       if (v.alive !== d.alive) { v.alive = d.alive; v.obj.visible = d.alive; if (d.alive) { this.place(v, d); v.buf.length = 0; } }
       if (!d.driver && v.buf.length === 0) this.place(v, d);
     }
@@ -66,13 +73,15 @@ export class Vehicles {
     }
   }
   create(d) {
-    const tpl = this.templates[d.type], obj = tpl.clone(true);
+    const tpl = this.templates[d.type], obj = VEHICLES[d.type].skinned ? cloneSkinned(tpl) : tpl.clone(true);
     obj.rotation.order = 'YXZ';
     const n = name => obj.getObjectByName(name);
     const v = { id: d.id, type: d.type, obj, buf: [], pos: new THREE.Vector3(), h: d.h || 0, pi: 0, ro: 0, ty: 0, tp: 0, vel: new THREE.Vector3(), speed: 0, steer: 0, rpm: 0,
       driver: d.driver, hp: d.hp, alive: d.alive, local: false, wheelRot: 0, snd: null };
     if (d.type === 'apc') {
       v.nodes = { turret: n('Turret'), cradle: n('Cradle'), muzzle: n('Muzzle'), steer: [n('Steer_FL'), n('Steer_FR')], wheels: ['Wheel_FL', 'Wheel_FR', 'Wheel_RL', 'Wheel_RR'].map(n) };
+    } else if (d.type === 'moto') {
+      v.nodes = { front: n('FRONT-TIRE_07'), rear: n('REAR-TIRE_09'), fork: n('Fouche_06') };
     } else {
       v.nodes = { rotor: n('MainRotor'), tail: n('TailRotor'), guns: [n('Muzzle_Gun_L'), n('Muzzle_Gun_R')], pods: [n('Rocket_L'), n('Rocket_R')] };
       v.disc = rotorDisc(4.04); v.disc.position.set(0, 2.67, 0); v.disc.visible = false; obj.add(v.disc);
@@ -86,7 +95,7 @@ export class Vehicles {
     const y = d.p[1] !== null && d.p[1] !== undefined ? d.p[1] : (this.groundAt(x, z, 60) ?? this.world.heightAt(x, z) ?? 0);
     let yy = y;
     if (v.type === 'heli' && !d.driver && d.p[1] !== null && d.p[1] !== undefined) yy = this.groundAt(x, z, 3, y) ?? y;   // ilmaan jäänyt kuljettajaton kopteri maahan
-    v.pos.set(x, yy, z); v.h = d.h || 0; v.fallY = Infinity; this.applyTransform(v);
+    v.pos.set(x, yy, z); v.h = d.h || 0; v.fallY = Infinity; v.crashed = false; v.pi = v.ro = 0; this.applyTransform(v);
   }
   groundAt(x, z, from = 6, y0 = null) {
     const top = (y0 ?? this.world.heightAt(x, z) ?? 0) + from;
@@ -96,9 +105,9 @@ export class Vehicles {
   // tilannekuva: [id, pos, h, pi, ro, ty, tp, driver, hp, alive, s, r]
   push(V) {
     const now = performance.now();
-    for (const [id, p, h, pi, ro, ty, tp, driver, hp, alive, s, r] of V) {
+    for (const [id, p, h, pi, ro, ty, tp, driver, hp, alive, s, r, dis] of V) {
       const v = this.list.get(id); if (!v) continue;
-      v.hp = hp;
+      v.hp = hp; v.dis = !!dis;
       if (v.local || !alive || p[1] === null) continue;
       if (!driver && v.buf.length && v.buf[v.buf.length - 1].p[0] === p[0] && v.buf[v.buf.length - 1].p[2] === p[2]) { v.buf[v.buf.length - 1].t = now; continue; }
       v.buf.push({ t: now, p, h, pi, ro, ty, tp, s, r }); if (v.buf.length > 30) v.buf.shift();
@@ -116,14 +125,15 @@ export class Vehicles {
   // paikka, johon kuljettaja jää ulos noustessa (kylki, ei seinän sisällä eikä vedessä)
   exitSpot(v) {
     const right = new THREE.Vector3(-Math.cos(v.h), 0, Math.sin(v.h)), f = fwdOf(v.h);
-    for (const off of [right.clone().multiplyScalar(-2.8), right.clone().multiplyScalar(2.8), f.clone().multiplyScalar(-4.5), f.clone().multiplyScalar(4.5)]) {
+    const [sd, fb] = v.type === 'moto' ? [1.3, 1.9] : [2.8, 4.5];
+    for (const off of [right.clone().multiplyScalar(-sd), right.clone().multiplyScalar(sd), f.clone().multiplyScalar(-fb), f.clone().multiplyScalar(fb)]) {
       const p = v.pos.clone().add(off);
       if (!this.player.validXZ(p.x, p.z, 1.5)) continue;
       const g = this.groundAt(p.x, p.z, Math.max(6, v.pos.y - (this.world.heightAt(p.x, p.z) ?? 0) + 3));
       if (g === null) continue;
       if (this.collider.clear(v.pos.clone().setY(v.pos.y + 1.5), new THREE.Vector3(p.x, g + 1.2, p.z))) return new THREE.Vector3(p.x, g + 0.1, p.z);
     }
-    return v.pos.clone().add(new THREE.Vector3(0, v.type === 'apc' ? 2.6 : 0.2, 0));   // katolle / paikalleen
+    return v.pos.clone().add(new THREE.Vector3(0, v.type === 'apc' ? 2.6 : v.type === 'moto' ? 1.2 : 0.2, 0));   // katolle / paikalleen
   }
 
   // ---------- osumat ----------
@@ -149,7 +159,7 @@ export class Vehicles {
     return best;
   }
   near(p, r, excludeId = null) {   // raketin lähiosuma
-    for (const v of this.list.values()) if (v.alive && v.id !== excludeId && v.pos.distanceTo(p) < r + (v.type === 'apc' ? 3.2 : 3.5) && p.y > v.pos.y - 0.5 && p.y < v.pos.y + 3.5) return v;
+    for (const v of this.list.values()) if (v.alive && v.id !== excludeId && v.pos.distanceTo(p) < r + (v.type === 'apc' ? 3.2 : v.type === 'moto' ? 1.3 : 3.5) && p.y > v.pos.y - 0.5 && p.y < v.pos.y + 3.5) return v;
     return null;
   }
   // jalankulkija ei kävele ajoneuvon läpi
@@ -158,7 +168,8 @@ export class Vehicles {
       if (!v.alive || v.local) continue;
       const dx = pos.x - v.pos.x, dz = pos.z - v.pos.z;
       const lxx = dx * Math.cos(v.h) - dz * Math.sin(v.h), lzz = dx * Math.sin(v.h) + dz * Math.cos(v.h);   // ajoneuvon omat koordinaatit
-      const [hx, hz] = v.type === 'apc' ? [1.3, 3.2] : [1.0, 2.2];
+      if (v.type === 'moto' && v.driver) continue;
+      const [hx, hz] = v.type === 'apc' ? [1.3, 3.2] : v.type === 'moto' ? [0.4, 1.2] : [1.0, 2.2];
       if (pos.y > v.pos.y + (v.type === 'apc' ? 2.4 : 2.6) || pos.y < v.pos.y - 1.5) continue;
       const ox = hx + radius - Math.abs(lxx), oz = hz + radius - Math.abs(lzz);
       if (ox > 0 && oz > 0) {
@@ -173,17 +184,18 @@ export class Vehicles {
   // input: { fwd, side, up, fire, alt, look: Vector3 (katsesuunta), camPos }
   simulate(dt, input) {
     const v = this.mine; if (!v || !v.alive) return;
-    if (v.type === 'apc') this.simApc(v, dt, input); else this.simHeli(v, dt, input);
-    this.weaponsUpdate(v, dt, input);
+    if (v.type === 'apc') this.simApc(v, dt, input); else if (v.type === 'moto') this.simMoto(v, dt, input); else this.simHeli(v, dt, input);
+    if (v.type !== 'moto') this.weaponsUpdate(v, dt, input);          // moottoripyörällä ajaja käyttää omia aseitaan
   }
   simApc(v, dt, I) {
     const A = APC;
-    const thr = I.fwd;
+    const thr = v.dis ? 0 : I.fwd;                                      // sinko-osuma: liikuntakyvytön, torni toimii yhä
+    if (v.dis) v.speed = 0;
     if (thr > 0) v.speed += (v.speed < 0 ? A.brake : A.acc) * thr * dt;
     else if (thr < 0) v.speed += (v.speed > 0 ? A.brake : A.rev) * thr * dt;
     else v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), 3 * dt);
     v.speed = THREE.MathUtils.clamp(v.speed, -A.maxRev, A.max);
-    const steerTarget = -I.side * A.steer * (1 - Math.min(0.6, Math.abs(v.speed) / A.max * 0.6));
+    const steerTarget = -(v.dis ? 0 : I.side) * A.steer * (1 - Math.min(0.6, Math.abs(v.speed) / A.max * 0.6));
     v.steer += (steerTarget - v.steer) * Math.min(1, dt * 5);
     v.h += v.speed * Math.tan(v.steer) / A.wheelbase * dt;
     const f = fwdOf(v.h), old = v.pos.clone();
@@ -192,18 +204,14 @@ export class Vehicles {
     const a = v.pos.clone().addScaledVector(f, -2.3).setY(v.pos.y + 1.3), b = v.pos.clone().addScaledVector(f, 2.3).setY(v.pos.y + 1.3);
     const push = this.collider.collideCapsule(a, b, 1.15, new THREE.Vector3());
     push.y = 0;
-    if (push.lengthSq() > 1e-4) {
-      v.pos.add(push);
-      if (Math.abs(v.speed) > 9) this.net.emit('vcrash', { dmg: (Math.abs(v.speed) - 9) * 6 });
-      v.speed *= 0.4;
-    }
-    if (!this.player.validXZ(v.pos.x, v.pos.z, 4, 2)) { v.pos.copy(old); v.speed = 0; }
+    if (push.lengthSq() > 1e-4) v.pos.add(push);                       // raskas ajoneuvo: este pysäyttää liikkeen, ei vaurioita eikä vauhdin menetystä
+    if (!this.player.validXZ(v.pos.x, v.pos.z, 4, 2)) { v.pos.copy(old); }
     // pyörät maahan: korkeus, nyökkäys ja kallistus neljästä pisteestä
     const r = new THREE.Vector3(-Math.cos(v.h), 0, Math.sin(v.h));   // oikea kylki
     const hgt = (lx, lz) => { const p = v.pos.clone().addScaledVector(f, lz).addScaledVector(r, -lx); return this.groundAt(p.x, p.z, 3, v.pos.y) ?? v.pos.y; };
     const fl = hgt(1, 1.75), fr = hgt(-1, 1.75), rl = hgt(1, -1.75), rr = hgt(-1, -1.75);
     const gy = (fl + fr + rl + rr) / 4;
-    if (gy > v.pos.y + 1.2) { v.pos.copy(old); v.speed = 0; }            // liian korkea este (seinä, porras)
+    if (gy > v.pos.y + 1.2) { v.pos.copy(old); }                         // liian korkea este (seinä, porras)
     else { const k = gy < v.pos.y ? Math.min(1, dt * 6) : Math.min(1, dt * 12); v.pos.y += (gy - v.pos.y) * k; }
     v.pi += (Math.atan2(rl + rr - fl - fr, 2 * A.wheelbase) - v.pi) * Math.min(1, dt * 8);
     v.ro += (Math.atan2(fr + rr - fl - rl, 2 * A.track) - v.ro) * Math.min(1, dt * 8);
@@ -217,39 +225,83 @@ export class Vehicles {
     v.ty += THREE.MathUtils.clamp(angDiff(wantYaw, v.ty), -2.6 * dt, 2.6 * dt);
     v.tp += THREE.MathUtils.clamp(wantPitch - v.tp, -1.6 * dt, 1.6 * dt);
   }
+  // Helikopteri: hiiri antaa suunnan, A/D kääntää (poljin, main.js kääntää katsetta), W/S kallistaa eteen/taakse,
+  // E/Q nousu/lasku. Kallistus käännön suuntaan ja vauhti seuraa nokkaa kuten Helsinkikopterissa.
   simHeli(v, dt, I) {
     const H = HELI;
     const wantH = Math.atan2(-I.look.x, -I.look.z) + Math.PI;                // nokka katseen suuntaan
+    const h0 = v.h;
     v.h += THREE.MathUtils.clamp(angDiff(wantH, v.h), -H.turn * dt, H.turn * dt);
-    const f = fwdOf(v.h), r = new THREE.Vector3(-Math.cos(v.h), 0, Math.sin(v.h));
+    const dh = angDiff(v.h, h0), yawRate = dh / Math.max(dt, 1e-4);
+    const f = fwdOf(v.h);
     const g0 = this.groundAt(v.pos.x, v.pos.z, 3, v.pos.y) ?? this.world.heightAt(v.pos.x, v.pos.z) ?? 0;
     const landed = v.pos.y - g0 < 0.15;
     const lift = landed && I.up <= 0 ? 0 : 1;                               // maassa: ei liukumista ilman nousua
-    const acc = f.clone().multiplyScalar(I.fwd * H.acc * lift).addScaledVector(r, I.side * H.side * lift);
-    v.vel.x += acc.x * dt; v.vel.z += acc.z * dt;
+    // vauhti kääntyy nokan mukana (koordinoitu kaarto)
+    if (!landed) { const c = Math.cos(dh * 0.9), sn = Math.sin(dh * 0.9), vx = v.vel.x, vz = v.vel.z; v.vel.x = vx * c + vz * sn; v.vel.z = -vx * sn + vz * c; }
+    v.vel.x += f.x * I.fwd * H.acc * lift * dt; v.vel.z += f.z * I.fwd * H.acc * lift * dt;
     const drag = Math.max(0, 1 - (landed ? 4 : 0.7) * dt); v.vel.x *= drag; v.vel.z *= drag;
     const hs = Math.hypot(v.vel.x, v.vel.z); if (hs > H.maxH) { v.vel.x *= H.maxH / hs; v.vel.z *= H.maxH / hs; }
     v.vel.y += THREE.MathUtils.clamp(I.up * H.vMax - v.vel.y, -H.vAcc * dt, H.vAcc * dt);
     const old = v.pos.clone();
     v.pos.addScaledVector(v.vel, dt);
-    // törmäys rakennuksiin: kapseli rungon kohdalla
+    // rakennukseen osuminen tuhoaa kopterin (runko tai roottori), hiljainen kosketus maahan ei
     const a = v.pos.clone().setY(v.pos.y + 0.9), b = v.pos.clone().setY(v.pos.y + 2.3);
-    const push = this.collider.collideCapsule(a, b, 1.9, new THREE.Vector3());
+    const push = this.collider.collideCapsule(a, b, 1.6, new THREE.Vector3());
+    const sp = v.vel.length(), agl = v.pos.y - g0;
     if (push.lengthSq() > 1e-4) {
-      const sp = v.vel.length();
-      v.pos.add(push); const n = push.clone().normalize(); const vn = v.vel.dot(n); if (vn < 0) v.vel.addScaledVector(n, -vn * 1.3);
-      if (sp > 14 && n.y < 0.7) this.net.emit('vcrash', { dmg: (sp - 14) * 8 });
+      const n = push.clone().normalize();
+      if (n.y < 0.6 && sp > 3 && !v.crashed) { v.crashed = true; this.net.emit('vcrash', { kill: true }); }
+      v.pos.add(push); const vn = v.vel.dot(n); if (vn < 0) v.vel.addScaledVector(n, -vn * 1.3);
+    }
+    if (agl > 0.4 && v.rpm > 0.5 && !v.crashed) {
+      const hub = v.pos.clone().setY(v.pos.y + 2.67);
+      for (let k = 0; k < 8; k++) { const ang = k / 8 * Math.PI * 2, d = new THREE.Vector3(Math.cos(ang), 0, Math.sin(ang)); const hit = this.collider.raycast(hub, d, 3.9);
+        if (hit && hit.kind === 'buildings') { v.crashed = true; this.net.emit('vcrash', { kill: true }); break; } }
     }
     // maa ja katot
     const g = this.groundAt(v.pos.x, v.pos.z, 3, v.pos.y);
     if (g !== null && v.pos.y < g) { if (v.vel.y < -7) this.net.emit('vcrash', { dmg: (-v.vel.y - 7) * 15 }); v.pos.y = g; v.vel.y = Math.max(0, v.vel.y); }
     const gb = this.world.heightAt(v.pos.x, v.pos.z) ?? g0; if (v.pos.y > gb + H.ceiling) { v.pos.y = gb + H.ceiling; v.vel.y = Math.min(0, v.vel.y); }
     if (!this.player.validXZ(v.pos.x, v.pos.z, 3, -Infinity)) { v.pos.x = old.x; v.pos.z = old.z; v.vel.x = v.vel.z = 0; }   // alueen reuna (meri sallittu)
-    // kallistus kiihdytyksen mukaan
-    v.pi += (I.fwd * 0.22 * lift - v.pi) * Math.min(1, dt * 3);
-    v.ro += (-I.side * 0.25 * lift - v.ro) * Math.min(1, dt * 3);
+    // asento: nokka alas kiihdytettäessä, kallistus käännön suuntaan (oikea kaarto = oikea kylki alas = +ro)
+    const bankK = 0.25 + 0.75 * Math.min(1, hs / 18);
+    v.pi += ((I.fwd * 0.22 + Math.min(0.12, hs / 300)) * lift - v.pi) * Math.min(1, dt * 3);
+    v.ro += (THREE.MathUtils.clamp(-yawRate * 0.3 * bankK, -0.5, 0.5) * lift - v.ro) * Math.min(1, dt * 3);
     v.rpm += (1 - v.rpm) * Math.min(1, dt * 0.8);
-    v.speed = hs;
+    v.speed = hs; v.agl = Math.max(0, v.pos.y - (this.groundAt(v.pos.x, v.pos.z, 3, v.pos.y) ?? v.pos.y));
+  }
+  // Moottoripyörä: kevyt ja nopea, kallistuu kaarteeseen. Ajaja ampuu omilla aseillaan.
+  simMoto(v, dt, I) {
+    const M = MOTO, thr = I.fwd;
+    if (thr > 0) v.speed += (v.speed < 0 ? M.brake : M.acc * (1 - 0.5 * Math.max(0, v.speed) / M.max)) * thr * dt;
+    else if (thr < 0) v.speed += (v.speed > 0.5 ? M.brake : M.rev) * thr * dt;
+    else v.speed -= Math.sign(v.speed) * Math.min(Math.abs(v.speed), 2 * dt);
+    v.speed = THREE.MathUtils.clamp(v.speed, -M.maxRev, M.max);
+    const steerTarget = -I.side * M.steer * (1 - Math.min(0.75, Math.abs(v.speed) / M.max * 0.85));
+    v.steer += (steerTarget - v.steer) * Math.min(1, dt * 6);
+    const h0 = v.h;
+    v.h += v.speed * Math.tan(v.steer) / M.wheelbase * dt;
+    const f = fwdOf(v.h), old = v.pos.clone();
+    v.pos.addScaledVector(f, v.speed * dt);
+    const a = v.pos.clone().addScaledVector(f, -0.8).setY(v.pos.y + 0.6), b = v.pos.clone().addScaledVector(f, 1.1).setY(v.pos.y + 0.6);
+    const push = this.collider.collideCapsule(a, b, 0.42, new THREE.Vector3()); push.y = 0;
+    if (push.lengthSq() > 1e-4) {
+      v.pos.add(push);
+      if (Math.abs(v.speed) > 8) this.net.emit('vcrash', { dmg: (Math.abs(v.speed) - 8) * 5 });
+      v.speed *= 0.35;
+    }
+    if (!this.player.validXZ(v.pos.x, v.pos.z, 3, 0.6)) { v.pos.copy(old); v.speed = 0; }
+    const hgt = lz => { const p = v.pos.clone().addScaledVector(f, lz); return this.groundAt(p.x, p.z, 2, v.pos.y) ?? v.pos.y; };
+    const fy = hgt(1.15), ry = hgt(-0.58), gy = (fy + ry) / 2;
+    if (gy > v.pos.y + 0.45) { v.pos.copy(old); v.speed = 0; }                     // reunakivi tai porras on liian korkea
+    else { const k = gy < v.pos.y ? Math.min(1, dt * 8) : Math.min(1, dt * 16); v.pos.y += (gy - v.pos.y) * k; }
+    v.pi += (Math.atan2(ry - fy, M.wheelbase) - v.pi) * Math.min(1, dt * 10);
+    const yawRate = angDiff(v.h, h0) / Math.max(dt, 1e-4);
+    v.ro += (THREE.MathUtils.clamp(Math.atan(-yawRate * v.speed / 9.8), -0.6, 0.6) - v.ro) * Math.min(1, dt * 6);
+    v.wheelRot += v.speed * dt;
+    v.ty = v.steer;                                                          // ohjauskulma muille (torniarvon paikalla)
+    v.rpm = Math.min(1, 0.2 + Math.abs(v.speed) / M.max * 0.8 + Math.abs(thr) * 0.2);
   }
   // irrallaan oleva helikopteri putoaa maahan, roottori hidastuu
   idle(v, dt) {
@@ -293,6 +345,11 @@ export class Vehicles {
     dir.addScaledVector(u, Math.cos(a) * sp).addScaledVector(up, Math.sin(a) * sp).normalize();
     const res = this.weapons.hitscanFrom(muzzle, dir, def.dmg, w, { excludeVehicle: v.id, head: 1.5 });
     this.fx.remoteMuzzle(muzzle, dir); this.fx.tracer(muzzle, res.end, [1, 0.8, 0.45]);
+    if (def.he && res.code) {                                               // räjähtävä ammus: pieni räjähdys ja alueosuma
+      this.fx.miniBlast(res.end, dir.clone().negate()); this.sound.explosion(res.end, false, 0.45);
+      this.net.emit('he', { p: [+res.end.x.toFixed(2), +res.end.y.toFixed(2), +res.end.z.toFixed(2)] });
+      this.fx.shake = Math.max(this.fx.shake, 0.06);
+    }
     this.sound.shot(def, null);
     this.net.emit('fx', { S: [w, +muzzle.x.toFixed(2), +muzzle.y.toFixed(2), +muzzle.z.toFixed(2), +res.end.x.toFixed(2), +res.end.y.toFixed(2), +res.end.z.toFixed(2), res.code] });
   }
@@ -312,7 +369,8 @@ export class Vehicles {
           v.pos.set(lerp(A.p[0], B.p[0]), lerp(A.p[1], B.p[1]), lerp(A.p[2], B.p[2]));
           v.h = alerp(A.h, B.h); v.pi = lerp(A.pi, B.pi); v.ro = lerp(A.ro, B.ro); v.ty = alerp(A.ty, B.ty); v.tp = lerp(A.tp, B.tp);
           v.rpm = lerp(A.r, B.r);
-          const moved = prev.distanceTo(v.pos); v.wheelRot += (B.s >= 0 ? 1 : -1) * moved / APC.wheelR; v.speed = moved / Math.max(dt, 1e-3);
+          const moved = prev.distanceTo(v.pos); v.wheelRot += (B.s >= 0 ? 1 : -1) * (v.type === 'moto' ? moved : moved / APC.wheelR); v.speed = moved / Math.max(dt, 1e-3);
+          if (v.type === 'moto') v.steer = v.ty;
         }
         if (!v.driver) this.idle(v, dt);
         // kuljettajaton helikopteri (lentäjä kaatui ilmassa) putoaa maahan; kaikki selaimet laskevat saman maanpinnan
@@ -327,8 +385,9 @@ export class Vehicles {
       // moottorin ääni
       if (this.sound.ok) {
         const level = v.type === 'heli' ? v.rpm : (v.driver ? v.rpm || 0.3 : 0);
+        if (v.dis && v.type === 'apc' && Math.random() < dt * 6) this.fx.smokePuff?.(v.pos.clone().add(new THREE.Vector3(0, 2.2, 0)));
         if (level > 0.02 && !v.snd) v.snd = this.sound.engineLoop(v.type);
-        if (v.snd) { if (level <= 0.02) { v.snd.stop(); v.snd = null; } else v.snd.set(v.pos, level, Math.min(1, v.speed / (v.type === 'heli' ? 40 : 16))); }
+        if (v.snd) { if (level <= 0.02) { v.snd.stop(); v.snd = null; } else v.snd.set(v.pos, level, Math.min(1, v.speed / (v.type === 'heli' ? 40 : v.type === 'moto' ? 28 : 16))); }
       }
     }
     // tila palvelimelle 20 Hz
@@ -336,7 +395,7 @@ export class Vehicles {
     if (m && m.alive && (this.stAcc += dt) >= 0.05) {
       this.stAcc = 0;
       const r = x => +x.toFixed(3);
-      this.net.volatile('vst', { v: m.id, p: [r(m.pos.x), r(m.pos.y), r(m.pos.z)], h: r(m.h), pi: r(m.pi), ro: r(m.ro), ty: r(m.ty), tp: r(m.tp), s: r(m.speed), r: r(m.rpm) });
+      this.net.volatile('vst', { v: m.id, p: [r(m.pos.x), r(m.pos.y), r(m.pos.z)], h: r(m.h), pi: r(m.pi), ro: r(m.ro), ty: r(m.ty), tp: r(m.tp), s: r(m.speed), r: r(m.rpm), g: r(m.agl || 0) });
     }
     void listenerPos;
   }
@@ -347,6 +406,9 @@ export class Vehicles {
       N.turret.rotation.y = v.ty; N.cradle.rotation.x = -v.tp;
       for (const s of N.steer) s.rotation.y = v.steer;
       for (const w of N.wheels) w.rotation.x = v.wheelRot;
+    } else if (v.type === 'moto') {
+      N.front.rotation.x = v.wheelRot / MOTO.rF; N.rear.rotation.x = v.wheelRot / MOTO.rR;
+      N.fork.quaternion.setFromAxisAngle(MOTO.steerAxis, -v.steer);          // + = oikealle
     } else {
       // roottori: nopeassa pyörimisessä läpikuultava kiekko, lavat pyörivät näkyvästi hitaammin (ei välkyntää)
       const spin = v.rpm * 490 / 60 * 2 * Math.PI;

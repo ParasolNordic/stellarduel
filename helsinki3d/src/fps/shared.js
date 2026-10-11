@@ -30,7 +30,7 @@ export const MAPS = {
   2: {
     checkpoints: [[-263.7, -391.8], [-39.4, 416.9], [243.3, -133.8]],   // keskimmäinen laiturilla
     crates: 8,
-    vehicles: [{ type: 'apc', p: [13.9, 316.7], h: 1.57 }, { type: 'heli', p: [-110, 96], h: 0 }],
+    vehicles: [{ type: 'apc', p: [13.9, 316.7], h: 1.57 }, { type: 'heli', p: [-110, 96], h: 0 }, { type: 'moto', p: [0.3, 1.2], h: 0 }, { type: 'moto', p: [-149.7, -34.8], h: 1.2 }],
     crateSpots: [[-209.7, -385.8], [-29.7, 421.2], [249.3, -64.8], [-263.7, 61.2], [156.3, -418.8], [231.3, 247.2], [-44.7, -139.8],
       [-14.7, 151.2], [-263.7, 316.2], [-260.7, -172.8], [129.3, -226.8], [-26.7, -334.8], [144.3, 76.2], [75.3, 283.2], [-107.7, 280.2],
       [-149.7, -34.8], [0.3, 1.2], [-143.7, -253.8], [-155.7, 148.2], [234.3, -307.8], [120.3, -52.8], [240.3, -184.8], [258.3, 58.2],
@@ -40,7 +40,7 @@ export const MAPS = {
   3: {
     checkpoints: [[-302.2, -5.7], [279.8, 282.3], [177.8, -239.7]],
     crates: 8,
-    vehicles: [{ type: 'apc', p: [56, 18], h: 0.82 }, { type: 'heli', p: [-41.2, -146.7], h: 0.8 }],   // kopteri pallokentällä
+    vehicles: [{ type: 'apc', p: [56, 18], h: 0.82 }, { type: 'heli', p: [-41.2, -146.7], h: 0.8 }, { type: 'moto', p: [81.8, -11.7], h: 0.8 }, { type: 'moto', p: [-98.2, 9.3], h: -0.8 }],   // kopteri pallokentällä
     crateSpots: [[-251.2, -50.7], [279.8, 282.3], [219.8, -203.7], [-35.2, 195.3], [3.8, -80.7], [213.8, 45.3], [24.8, -284.7],
       [111.8, 279.3], [-197.2, 105.3], [66.8, 81.3], [-131.2, -125.7], [144.8, -83.7], [-98.2, 9.3], [183.8, 171.3],
       [87.8, -182.7], [270.8, -104.7], [72.8, 183.3], [-104.2, 129.3], [81.8, -11.7], [-257.2, 39.3], [-26.2, 282.3],
@@ -56,14 +56,24 @@ export const CHECKPOINT_RADIUS = 3.5;   // m
 export const VEHICLES = {
   apc: { name: 'NC-4 PANSSARIAJONEUVO', short: 'NC-4', hp: 500, file: '/vehicles/nc4_apc.glb', respawn: 30, enterRadius: 5 },
   heli: { name: 'NC-H6 HELIKOPTERI', short: 'NC-H6', hp: 260, file: '/vehicles/nc_h6.glb', respawn: 30, enterRadius: 6 },
+  moto: { name: 'MOOTTORIPYÖRÄ', short: 'MP', hp: 70, file: '/vehicles/moto_africa_1938.glb', respawn: 25, enterRadius: 2.6, skinned: true },
 };
-// ajoneuvoaseet: 8 = panssariajoneuvon raskas konekivääri (RWS), 9 = helikopterin konetykit; raketit = 6
+// ajoneuvoaseet: 8 = panssariajoneuvon konetykki (RWS, räjähtävät ammukset), 9 = helikopterin konetykit; raketit = 6
 export const VEHICLE_WEAPONS = {
-  8: { id: 'rws', short: 'RWS-KK', name: 'RASKAS KONEKIVÄÄRI', dmg: 34, rpm: 520, mag: 100, reload: 5, spread: 0.45,
-    snd: { f: 600, q: 0.8, decay: 0.16, thump: 45, crack: 0.9, gain: 1.1, tail: 1.1 } },
+  8: { id: 'rws', short: 'RWS-TYKKI', name: 'KONETYKKI', dmg: 70, rpm: 210, mag: 60, reload: 4, spread: 0.35, he: { r: 5, dmg: 75 },
+    snd: { f: 380, q: 0.7, decay: 0.24, thump: 38, crack: 1.0, gain: 1.3, tail: 1.5 } },
   9: { id: 'heligun', short: 'H6-TYKKI', name: 'KONETYKIT', dmg: 16, rpm: 1100, mag: 300, reload: 6, spread: 1.0,
     snd: { f: 900, q: 0.9, decay: 0.08, thump: 60, crack: 0.7, gain: 0.85, tail: 0.8 } },
 };
 export const HELI_ROCKETS = { count: 14, cooldown: 0.35, reload: 10 };
-// ajoneuvoon osuvan vahingon kerroin aseryhmittäin (palvelin): käsiaseet, räjähteet, RWS, konetykit
-export const VEHICLE_DMG = { apc: { small: 0.08, splash: 1.0, 8: 0.3, 9: 0.15 }, heli: { small: 0.5, splash: 1.4, 8: 1.0, 9: 0.8 } };
+// Osumat ajoneuvoihin (palvelin). Luodit: kerroin aseen indeksin mukaan (pienempi kaliiberi = useampi osuma).
+// Räjähteet erikseen: kopteri tuhoutuu yhdestä sinko-osumasta (myös ilmassa) ja maassa kranaatista/droonista,
+// panssariajoneuvo pysähtyy ensimmäisestä sinko-osumasta ja tuhoutuu toisesta; luodit eivät vaikuta siihen.
+export const VEHICLE_DMG = {
+  heli: { bullet: { 0: 0.35, 1: 0.4, 2: 0.6, 3: 0.25, 4: 1.0, 5: 0.7, 8: 1.2, 9: 1.0 }, he: 1.0 },
+  apc: { bullet: {}, he: 0 },
+  moto: { bullet: { 0: 1, 1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 8: 1, 9: 1 }, he: 1.5, splash: 1.5 },
+};
+export const DIRECT_HIT = 4.5;   // m: räjähdys näin lähellä ajoneuvon keskiötä lasketaan osumaksi
+// räjähdedrooni: yksi per elämä, kranaatin tasoinen räjähde
+export const DRONE = { speedMin: 5, speedMax: 24, climb: 7, battery: 45, hp: 1, radius: 0.45, fov: 100 };
